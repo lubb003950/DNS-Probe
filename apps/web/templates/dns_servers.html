@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-title">DNS 服务器管理</h2>
+        <p class="page-subtitle">维护 DNS 别名、IP、分类和启用状态。</p>
+    </div>
+</div>
+
+{% if message %}{% block body_data %}data-toast-msg="{{ message }}" data-toast-type="warning"{% endblock %}{% endif %}
+<div class="card">
+    <h3 class="card-title">新增 DNS 服务器</h3>
+    <p class="card-desc">创建可被任务引用的 DNS 服务器配置。</p>
+    <form method="post" action="/dns-servers">
+        <div class="form-grid">
+            <div class="form-field">
+                <label for="dns-alias">别名</label>
+                <input id="dns-alias" name="dns_alias" required>
+            </div>
+            <div class="form-field">
+                <label for="dns-server">IP</label>
+                <input id="dns-server" name="dns_server" required>
+            </div>
+            <div class="form-field">
+                <label for="dns-category">分类</label>
+                <select id="dns-category" name="category">
+                    <option value="internal">internal</option>
+                    <option value="public">public</option>
+                </select>
+            </div>
+        </div>
+        <div class="button-row">
+            <button type="submit">新增 DNS</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="toolbar">
+        <div>
+            <h3 class="card-title">DNS 服务器列表</h3>
+            <div class="meta">用于任务选择和探测配置引用。</div>
+        </div>
+        <div class="meta">共 {{ dns_servers|length }} 台 DNS</div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>ID</th><th>别名</th><th>IP</th><th>分类</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+            {% for item in dns_servers %}
+                <tr>
+                    <td>#{{ item.id }}</td>
+                    <td>{{ item.dns_alias }}</td>
+                    <td>{{ item.dns_server }}</td>
+                    <td><span class="badge badge-brand">{{ item.category }}</span></td>
+                    <td>
+                        {% if item.enabled %}
+                        <span class="badge badge-success">启用</span>
+                        {% else %}
+                        <span class="badge badge-warning">停用</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="button-row" style="margin-top:0;">
+                            <a class="button-link button-secondary" href="/dns-servers/{{ item.id }}/edit">编辑</a>
+                            <form class="inline" method="post" action="/dns-servers/{{ item.id }}/delete" onsubmit="return confirm('确认删除该DNS服务器?');">
+                                <button class="button-danger" type="submit">删除</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6"><div class="empty-state">暂无 DNS 服务器</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

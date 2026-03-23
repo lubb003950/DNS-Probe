@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block breadcrumb %}
+<nav class="breadcrumb">
+    <a href="/alerts">告警事件</a>
+    <span class="bc-sep">›</span>
+    <span class="bc-cur">告警详情{% if alert %} — #{{ alert.id }}{% endif %}</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-title">告警详情</h2>
+        <p class="page-subtitle">展示告警事件的关键信息、时间窗口和关联探测记录。</p>
+    </div>
+    <div class="page-actions">
+        {% if alert and alert.status == "open" %}
+        <form class="inline" method="post" action="/alerts/{{ alert.id }}/close"
+              onsubmit="return confirm('确认手动关闭该告警？关闭后状态将标记为已恢复。');">
+            <button class="button-danger" type="submit">手动关闭</button>
+        </form>
+        {% endif %}
+        <a class="button-link button-ghost" href="/alerts">返回告警列表</a>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">告警事件详情</h3>
+    {% if alert %}
+    <div class="detail-list">
+        <div class="detail-item">
+            <span class="label">告警 ID</span>
+            <div class="value">#{{ alert.id }}</div>
+        </div>
+        <div class="detail-item">
+            <span class="label">任务</span>
+            <div class="value">{% if task %}{{ task.domain }}{% else %}任务 {{ alert.task_id }}{% endif %}</div>
+        </div>
+        <div class="detail-item">
+            <span class="label">规则</span>
+            <div class="value">{{ alert.check_text }}</div>
+        </div>
+        <div class="detail-item">
+            <span class="label">级别</span>
+            <div class="value">
+                {% if alert.level == "Critical" or alert.level == "Major" %}
+                <span class="badge badge-danger">{{ alert.level }}</span>
+                {% elif alert.level == "OK" %}
+                <span class="badge badge-success">{{ alert.level }}</span>
+                {% else %}
+                <span class="badge badge-warning">{{ alert.level }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="detail-item">
+            <span class="label">状态</span>
+            <div class="value">
+                {% if alert.status == "open" %}
+                <span class="status-dot open">处理中</span>
+                {% else %}
+                <span class="status-dot recovered">已恢复</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="detail-item">
+            <span class="label">首次触发</span>
+            <div class="value">{{ alert.first_triggered_at | bj_time }}</div>
+        </div>
+        <div class="detail-item">
+            <span class="label">最后触发</span>
+            <div class="value">{{ alert.last_triggered_at | bj_time }}</div>
+        </div>
+        <div class="detail-item">
+            <span class="label">恢复时间</span>
+            <div class="value">{{ alert.recovered_at | bj_time if alert.recovered_at else "未恢复" }}</div>
+        </div>
+        <div class="detail-item">
+            <span class="label">描述</span>
+            <div class="value">{{ alert.description }}</div>
+        </div>
+        <div class="detail-item">
+            <span class="label">最近推送结果</span>
+            <div class="value">{{ alert.last_push_result }}</div>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">告警事件不存在。</div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="toolbar">
+        <div>
+            <h3 class="card-title">关联探测记录</h3>
+            <div class="meta">围绕告警时间窗口展示对应的探测证据链。</div>
+        </div>
+        <div class="meta">共 {{ records|length }} 条记录</div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>时间</th><th>节点</th><th>DNS</th><th>状态</th><th>耗时(ms)</th><th>结果</th><th>错误</th></tr>
+            </thead>
+            <tbody>
+            {% for item in records %}
+                <tr class="{% if item.status != 'NOERROR' %}row-danger{% endif %}">
+                    <td data-ts="{{ item.timestamp | bj_time }}">{{ item.timestamp | bj_time }}</td>
+                    <td>{{ item.probe_node }}</td>
+                    <td>{{ item.dns_alias }} ({{ item.dns_server }})</td>
+                    <td>
+                        {% if item.status == "NOERROR" %}
+                        <span class="badge badge-success">{{ item.status }}</span>
+                        {% else %}
+                        <span class="badge badge-danger">{{ item.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.latency_ms }}</td>
+                    <td>{{ item.result_snippet }}</td>
+                    <td>{{ item.error_message }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="7"><div class="empty-state">暂无关联记录</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

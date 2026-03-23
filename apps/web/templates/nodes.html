@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-title">探测节点</h2>
+        <p class="page-subtitle">先在这里预注册节点，再把系统生成的配置片段复制到 Agent 机器启动。</p>
+    </div>
+</div>
+
+{% if message %}{% block body_data %}data-toast-msg="{{ message }}" data-toast-type="info"{% endblock %}{% endif %}
+
+<div class="card">
+    <h3 class="card-title">新增节点</h3>
+    <p class="card-desc">预注册后，只有带正确名称与 Token 的 Agent 才能接入服务端。</p>
+    <form method="post" action="/nodes">
+        <div class="form-grid">
+            <div class="form-field">
+                <label for="n-name">节点名称</label>
+                <input id="n-name" name="name" placeholder="如 agent-shanghai-01" required>
+            </div>
+            <div class="form-field">
+                <label for="n-ip">预期 IP</label>
+                <input id="n-ip" name="expected_ip" placeholder="如 10.0.0.21">
+            </div>
+            <div class="form-field span-2">
+                <label for="n-desc">说明</label>
+                <input id="n-desc" name="description" placeholder="如 上海机房 / 公网链路">
+            </div>
+        </div>
+        <div class="button-row">
+            <button type="submit">创建节点</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="toolbar">
+        <div>
+            <h3 class="card-title">节点列表</h3>
+            <div class="meta">可查看节点启停状态、最近心跳，并复制 Agent 启动配置。</div>
+        </div>
+        <div class="meta">共 {{ nodes|length }} 个节点</div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>名称</th><th>预期IP</th><th>当前IP</th><th>启用</th><th>在线状态</th><th>最近心跳</th><th>配置片段</th><th>操作</th></tr></thead>
+            <tbody>
+            {% for item in nodes %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.expected_ip or "—" }}</td>
+                    <td>{{ item.node_ip or "—" }}</td>
+                    <td>
+                        {% if item.enabled %}
+                        <span class="badge badge-success">启用</span>
+                        {% else %}
+                        <span class="badge badge-warning">停用</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.status == "online" %}
+                        <span class="status-dot online">在线</span>
+                        {% else %}
+                        <span class="status-dot offline">{{ item.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.last_heartbeat | bj_time }}</td>
+                    <td>
+                        <details>
+                            <summary>查看配置</summary>
+                            <pre style="white-space:pre-wrap; margin-top:8px;">{{ item | agent_env }}</pre>
+                        </details>
+                    </td>
+                    <td>
+                        <div class="button-row" style="margin-top:0; gap:6px;">
+                            <a class="button-link button-secondary" href="/nodes/{{ item.id }}/edit">编辑</a>
+                            <form class="inline" method="post" action="/nodes/{{ item.id }}/toggle">
+                                <button class="button-ghost" type="submit">{{ "停用" if item.enabled else "启用" }}</button>
+                            </form>
+                            <form class="inline" method="post" action="/nodes/{{ item.id }}/reset-token" onsubmit="return confirm('确认重置该节点的 Token？');">
+                                <button class="button-secondary" type="submit">重置Token</button>
+                            </form>
+                            <form class="inline" method="post" action="/nodes/{{ item.id }}/delete" onsubmit="return confirm('确认删除该节点？');">
+                                <button class="button-danger" type="submit">删除</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="8"><div class="empty-state">暂无节点</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

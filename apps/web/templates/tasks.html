@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-title">任务管理</h2>
+        <p class="page-subtitle">集中维护探测任务、频率、告警联系人和目标 DNS。</p>
+    </div>
+</div>
+
+{% if message %}{% block body_data %}data-toast-msg="{{ message }}" data-toast-type="success"{% endblock %}{% endif %}
+
+<div class="card">
+    <h3 class="card-title">新建任务</h3>
+    <p class="card-desc">创建一条新的 DNS 探测任务，并配置基础告警策略。</p>
+    <form method="post" action="/tasks">
+        <div class="form-grid">
+            <div class="form-section">探测目标</div>
+            <div class="form-field">
+                <label for="c-domain">域名</label>
+                <input id="c-domain" name="domain" required>
+            </div>
+            <div class="form-field">
+                <label for="c-category">分类</label>
+                <select id="c-category" name="category">
+                    <option value="core">core（核心）</option>
+                    <option value="normal" selected>normal（普通）</option>
+                    <option value="test">test（测试）</option>
+                </select>
+            </div>
+            <div class="form-field span-2">
+                <label>探测节点（可选，不选则下发全部节点）</label>
+                <div class="dns-picker" id="node-picker-create">
+                    <div class="dns-picker-col">
+                        <div class="dns-picker-title">可用节点</div>
+                        <select id="node-available-create" size="4">
+                            {% for item in available_nodes %}
+                            <option value="{{ item.id }}">{{ item.name }}{% if item.node_ip %} ({{ item.node_ip }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="dns-picker-btns">
+                        <button type="button" onclick="nodeMoveRight('create')" title="添加">▶</button>
+                        <button type="button" onclick="nodeMoveLeft('create')" title="移除">◀</button>
+                    </div>
+                    <div class="dns-picker-col">
+                        <div class="dns-picker-title">已选节点（将被下发任务）</div>
+                        <select id="node-selected-node-create" size="4"></select>
+                    </div>
+                </div>
+            </div>
+            <div class="form-field span-2">
+                <label>DNS 服务器</label>
+                <div class="dns-picker" id="dns-picker-create">
+                    <div class="dns-picker-col">
+                        <div class="dns-picker-title">可用 DNS</div>
+                        <select id="dns-available-create" size="5">
+                            {% for item in dns_servers %}
+                            <option value="{{ item.id }}">{{ item.dns_alias }} ({{ item.dns_server }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="dns-picker-btns">
+                        <button type="button" onclick="dnsMoveRight('create')" title="添加">▶</button>
+                        <button type="button" onclick="dnsMoveLeft('create')" title="移除">◀</button>
+                    </div>
+                    <div class="dns-picker-col">
+                        <div class="dns-picker-title">已选 DNS（将参与探测）</div>
+                        <select id="dns-selected-create" size="5"></select>
+                    </div>
+                </div>
+                <div id="dns-picker-create-error" class="field-error" style="display:none;">请至少选择一个 DNS 服务器</div>
+            </div>
+            <div class="form-section">探测参数</div>
+            <div class="form-field">
+                <label for="c-record-type">记录类型</label>
+                <select id="c-record-type" name="record_type">
+                    <option>A</option><option>AAAA</option><option>CNAME</option>
+                    <option>TXT</option><option>MX</option><option>NS</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="c-freq">频率(秒)</label>
+                <input id="c-freq" name="frequency_seconds" type="number" value="60" min="10">
+                <span class="help-text">探测间隔，最小 10 秒，推荐 60 秒</span>
+            </div>
+            <div class="form-field">
+                <label for="c-timeout">超时(秒)</label>
+                <input id="c-timeout" name="timeout_seconds" type="number" value="2" min="1">
+                <span class="help-text">单次 DNS 查询超时时间，推荐 2 秒</span>
+            </div>
+            <div class="form-field">
+                <label for="c-retries">重试次数</label>
+                <input id="c-retries" name="retries" type="number" value="1" min="0">
+                <span class="help-text">超时或失败后重试次数，0 表示不重试</span>
+            </div>
+            <div class="form-section">告警策略</div>
+            <div class="form-field">
+                <label for="c-fail-rate">失败率阈值(%)</label>
+                <input id="c-fail-rate" name="failure_rate_threshold" type="number" value="30" min="1" max="100">
+                <span class="help-text">窗口内失败率超过此值触发告警，推荐 30%</span>
+            </div>
+            <div class="form-field">
+                <label for="c-consec">连续失败阈值</label>
+                <input id="c-consec" name="consecutive_failures_threshold" type="number" value="3" min="1">
+                <span class="help-text">连续失败次数超过此值触发告警，推荐 3 次</span>
+            </div>
+            <div class="form-field span-2">
+                <label for="c-contacts">告警联系人</label>
+                <input id="c-contacts" name="alert_contacts" placeholder="张三:13800000001,李四:13900000002">
+                <span class="help-text">格式：姓名:手机号，多个联系人用英文逗号分隔</span>
+            </div>
+            <div class="form-field">
+                <label for="c-sys-name">系统名称</label>
+                <input id="c-sys-name" name="system_name" value="DNS探测系统">
+            </div>
+            <div class="form-field">
+                <label for="c-app-name">应用名称</label>
+                <input id="c-app-name" name="app_name" value="DNS探测引擎">
+            </div>
+        </div>
+        <div class="button-row">
+            <button type="submit" onclick="return dnsPickerBeforeSubmit('create', this.closest('form'))">创建任务</button>
+        </div>
+    </form>
+</div>
+
+<!-- ── 筛选栏 ─────────────────────── -->
+<div class="card soft" style="margin-bottom:10px; padding:16px 20px;">
+    <form method="get" action="/tasks" id="filter-form">
+        <div class="filter-row">
+            <div class="filter-item">
+                <label class="filter-label">域名搜索</label>
+                <input name="q" value="{{ q }}" placeholder="输入域名关键词…" style="padding:7px 10px;">
+            </div>
+            <div class="filter-item">
+                <label class="filter-label">分类</label>
+                <select name="category">
+                    <option value="" {% if category == "" %}selected{% endif %}>全部分类</option>
+                    <option value="core"   {% if category == "core" %}selected{% endif %}>core</option>
+                    <option value="normal" {% if category == "normal" %}selected{% endif %}>normal</option>
+                    <option value="test"   {% if category == "test" %}selected{% endif %}>test</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label class="filter-label">DNS 别名</label>
+                <select name="dns_alias">
+                    <option value="" {% if dns_alias == "" %}selected{% endif %}>全部 DNS</option>
+                    {% for alias in all_aliases %}
+                    <option value="{{ alias }}" {% if dns_alias == alias %}selected{% endif %}>{{ alias }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-item">
+                <label class="filter-label">状态</label>
+                <select name="enabled">
+                    <option value=""      {% if enabled == "" %}selected{% endif %}>全部</option>
+                    <option value="true"  {% if enabled == "true" %}selected{% endif %}>启用</option>
+                    <option value="false" {% if enabled == "false" %}selected{% endif %}>停用</option>
+                </select>
+            </div>
+            <div class="filter-item filter-actions">
+                <button type="submit">筛选</button>
+                <a class="button-link button-secondary" href="/tasks">重置</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- ── 任务列表 ─────────────────────── -->
+<div class="card">
+    <div class="toolbar">
+        <div>
+            <h3 class="card-title">任务列表</h3>
+            <div class="meta">共 <b>{{ tasks|length }}</b> 条任务</div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <span class="meta" id="selected-count" style="display:none;">已选 <b id="count-num">0</b> 条</span>
+            <form id="batch-form" method="post" action="/tasks/batch">
+                <input type="hidden" name="action" id="batch-action" value="">
+                <div id="batch-ids"></div>
+                <div style="display:flex; gap:6px;">
+                    <button type="button" class="button-secondary" onclick="batchAction('enable')" id="btn-enable" style="display:none;">批量启用</button>
+                    <button type="button" class="button-danger"    onclick="batchAction('disable')" id="btn-disable" style="display:none;">批量停用</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table id="task-table">
+            <thead>
+                <tr>
+                    <th style="width:36px; text-align:center;">
+                        <label for="select-all" class="sr-only">全选</label>
+                        <input type="checkbox" id="select-all" class="check-auto" title="全选">
+                    </th>
+                    <th>ID</th><th>域名</th><th>分类</th><th>DNS 服务器</th><th>记录类型</th><th>频率</th><th>状态</th><th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in tasks %}
+                <tr>
+                    <td style="text-align:center;">
+                        <input type="checkbox" class="row-check check-auto" value="{{ item.id }}">
+                    </td>
+                    <td><span class="muted">#{{ item.id }}</span></td>
+                    <td><a href="/tasks/{{ item.id }}">{{ item.domain }}</a></td>
+                    <td>
+                        {% if item.category == "core" %}
+                        <span class="badge badge-danger">{{ item.category }}</span>
+                        {% elif item.category == "normal" %}
+                        <span class="badge badge-brand">{{ item.category }}</span>
+                        {% else %}
+                        <span class="badge badge-warning">{{ item.category }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% for ds in item.dns_servers %}
+                        <span class="badge badge-brand" style="margin:1px;">{{ ds.dns_alias }}</span>
+                        {% else %}
+                        —
+                        {% endfor %}
+                    </td>
+                    <td>{{ item.record_type }}</td>
+                    <td>{{ item.frequency_seconds }}s</td>
+                    <td>
+                        {% if item.enabled %}
+                        <span class="badge badge-success">启用</span>
+                        {% else %}
+                        <span class="badge badge-warning">停用</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="button-row" style="margin-top:0; gap:6px;">
+                            <a class="button-link button-secondary" href="/tasks/{{ item.id }}/edit">编辑</a>
+                            <form class="inline" method="post" action="/tasks/{{ item.id }}/toggle">
+                                <button class="button-ghost" type="submit">{{ "停用" if item.enabled else "启用" }}</button>
+                            </form>
+                            <form class="inline" method="post" action="/tasks/{{ item.id }}/delete" onsubmit="return confirm('确认删除该任务？');">
+                                <button class="button-danger" type="submit">删除</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="9"><div class="empty-state">暂无符合条件的任务</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const selectAll  = document.getElementById('select-all');
+    const checkboxes = document.querySelectorAll('.row-check');
+    const countSpan  = document.getElementById('selected-count');
+    const countNum   = document.getElementById('count-num');
+    const btnEnable  = document.getElementById('btn-enable');
+    const btnDisable = document.getElementById('btn-disable');
+
+    function updateBatchBar() {
+        const checked = document.querySelectorAll('.row-check:checked');
+        const n = checked.length;
+        countNum.textContent = n;
+        countSpan.style.display  = n > 0 ? 'inline'     : 'none';
+        btnEnable.style.display  = n > 0 ? 'inline-flex' : 'none';
+        btnDisable.style.display = n > 0 ? 'inline-flex' : 'none';
+    }
+
+    selectAll.addEventListener('change', function () {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        selectAll.indeterminate = false;
+        updateBatchBar();
+    });
+
+    checkboxes.forEach(cb => cb.addEventListener('change', function () {
+        const total   = checkboxes.length;
+        const checked = [...checkboxes].filter(c => c.checked).length;
+        selectAll.checked       = checked === total;
+        selectAll.indeterminate = checked > 0 && checked < total;
+        updateBatchBar();
+    }));
+
+    window.batchAction = function (action) {
+        const checked = document.querySelectorAll('.row-check:checked');
+        if (!checked.length) return;
+        document.getElementById('batch-action').value = action;
+        const container = document.getElementById('batch-ids');
+        container.innerHTML = '';
+        checked.forEach(cb => {
+            const inp = document.createElement('input');
+            inp.type = 'hidden'; inp.name = 'task_ids'; inp.value = cb.value;
+            container.appendChild(inp);
+        });
+        document.getElementById('batch-form').submit();
+    };
+})();
+</script>
+{% endblock %}

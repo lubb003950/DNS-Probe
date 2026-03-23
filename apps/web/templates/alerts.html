@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-title">告警事件</h2>
+        <p class="page-subtitle">查看当前和历史告警事件，快速进入详情页追溯证据链。</p>
+    </div>
+</div>
+
+<!-- 筛选栏 -->
+<div class="card soft" style="margin-bottom:10px; padding:16px 20px;">
+    <form method="get" action="/alerts">
+        <div class="filter-row">
+            <div class="filter-item">
+                <label class="filter-label">域名搜索</label>
+                <input name="q" value="{{ q }}" placeholder="输入域名关键词…" style="padding:7px 10px;">
+            </div>
+            <div class="filter-item">
+                <label class="filter-label">状态</label>
+                <select name="status">
+                    <option value=""          {% if status == "" %}selected{% endif %}>全部状态</option>
+                    <option value="open"      {% if status == "open" %}selected{% endif %}>处理中</option>
+                    <option value="recovered" {% if status == "recovered" %}selected{% endif %}>已恢复</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label class="filter-label">级别</label>
+                <select name="level">
+                    <option value=""         {% if level == "" %}selected{% endif %}>全部级别</option>
+                    <option value="Critical" {% if level == "Critical" %}selected{% endif %}>Critical</option>
+                    <option value="Major"    {% if level == "Major" %}selected{% endif %}>Major</option>
+                    <option value="OK"       {% if level == "OK" %}selected{% endif %}>OK</option>
+                </select>
+            </div>
+            <div class="filter-item filter-actions">
+                <button type="submit">筛选</button>
+                <a class="button-link button-secondary" href="/alerts">重置</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="toolbar">
+        <div>
+            <h3 class="card-title">事件列表</h3>
+            <div class="meta">点击告警 ID 可进入详情页查看关联记录和推送结果。</div>
+        </div>
+        <div class="meta">共 {{ alerts|length }} 条告警</div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>ID</th><th>任务ID</th><th>规则</th><th>级别</th><th>状态</th><th>最后触发</th><th>推送结果</th></tr>
+            </thead>
+            <tbody>
+            {% for item in alerts %}
+                <tr>
+                    <td><a href="/alerts/{{ item.id }}">#{{ item.id }}</a></td>
+                    <td>{{ item.task_id }}</td>
+                    <td>{{ item.check_text }}</td>
+                    <td>
+                        {% if item.level == "Critical" or item.level == "Major" %}
+                        <span class="badge badge-danger">{{ item.level }}</span>
+                        {% elif item.level == "OK" %}
+                        <span class="badge badge-success">{{ item.level }}</span>
+                        {% else %}
+                        <span class="badge badge-warning">{{ item.level }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.status == "open" %}
+                        <span class="status-dot open">处理中</span>
+                        {% else %}
+                        <span class="status-dot recovered">已恢复</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.last_triggered_at | bj_time }}</td>
+                    <td>{{ item.last_push_result }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="7"><div class="empty-state">暂无告警事件</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

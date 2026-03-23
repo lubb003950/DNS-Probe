@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block breadcrumb %}
+<nav class="breadcrumb">
+    <a href="/dns-servers">DNS 服务器</a>
+    <span class="bc-sep">›</span>
+    <span class="bc-cur">编辑{% if dns_server %} — {{ dns_server.dns_alias }}{% endif %}</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-title">编辑 DNS 服务器</h2>
+        <p class="page-subtitle">修改 DNS 基础配置和启用状态。</p>
+    </div>
+    <div class="page-actions">
+        <a class="button-link button-ghost" href="/dns-servers">返回 DNS 列表</a>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">编辑表单</h3>
+    {% if dns_server %}
+    <form method="post" action="/dns-servers/{{ dns_server.id }}/edit">
+        <div class="form-grid">
+            <div class="form-field">
+                <label for="de-alias">别名</label>
+                <input id="de-alias" name="dns_alias" value="{{ dns_server.dns_alias }}" required>
+            </div>
+            <div class="form-field">
+                <label for="de-server">IP</label>
+                <input id="de-server" name="dns_server" value="{{ dns_server.dns_server }}" required>
+            </div>
+            <div class="form-field">
+                <label for="de-category">分类</label>
+                <select id="de-category" name="category">
+                    <option value="internal" {% if dns_server.category == "internal" %}selected{% endif %}>internal</option>
+                    <option value="public" {% if dns_server.category == "public" %}selected{% endif %}>public</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="de-enabled">启用状态</label>
+                <select id="de-enabled" name="enabled">
+                    <option value="true" {% if dns_server.enabled %}selected{% endif %}>启用</option>
+                    <option value="false" {% if not dns_server.enabled %}selected{% endif %}>停用</option>
+                </select>
+            </div>
+        </div>
+        <div class="button-row">
+            <button type="submit">保存修改</button>
+            <a class="button-link button-secondary" href="/dns-servers">返回列表</a>
+        </div>
+    </form>
+    {% else %}
+    <div class="empty-state">DNS 服务器不存在。</div>
+    {% endif %}
+</div>
+{% endblock %}

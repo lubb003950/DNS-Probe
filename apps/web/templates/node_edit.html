@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block breadcrumb %}
+<nav class="breadcrumb">
+    <a href="/nodes">探测节点</a>
+    <span class="bc-sep">›</span>
+    <span class="bc-cur">编辑节点{% if node %} — {{ node.name }}{% endif %}</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-title">编辑探测节点</h2>
+        <p class="page-subtitle">修改节点名称、预期 IP、启停状态与说明信息。</p>
+    </div>
+    <div class="page-actions">
+        <a class="button-link button-ghost" href="/nodes">返回节点列表</a>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">编辑表单</h3>
+    {% if node %}
+    <form method="post" action="/nodes/{{ node.id }}/edit">
+        <div class="form-grid">
+            <div class="form-field">
+                <label for="ne-name">节点名称</label>
+                <input id="ne-name" name="name" value="{{ node.name }}" required>
+            </div>
+            <div class="form-field">
+                <label for="ne-ip">预期 IP</label>
+                <input id="ne-ip" name="expected_ip" value="{{ node.expected_ip }}">
+            </div>
+            <div class="form-field">
+                <label for="ne-enabled">启用状态</label>
+                <select id="ne-enabled" name="enabled">
+                    <option value="true" {% if node.enabled %}selected{% endif %}>启用</option>
+                    <option value="false" {% if not node.enabled %}selected{% endif %}>停用</option>
+                </select>
+            </div>
+            <div class="form-field span-2">
+                <label for="ne-desc">说明</label>
+                <textarea id="ne-desc" name="description" rows="4">{{ node.description }}</textarea>
+            </div>
+        </div>
+        <div class="button-row">
+            <button type="submit">保存修改</button>
+            <a class="button-link button-secondary" href="/nodes">返回列表</a>
+        </div>
+    </form>
+    {% else %}
+    <div class="empty-state">节点不存在。</div>
+    {% endif %}
+</div>
+{% endblock %}

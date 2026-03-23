@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block breadcrumb %}
+<nav class="breadcrumb">
+    <a href="/tasks">探测任务</a>
+    <span class="bc-sep">/</span>
+    <span class="bc-cur">任务详情{% if task %} / {{ task.domain }}{% endif %}</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-title">任务详情</h2>
+        <p class="page-subtitle">查看单个任务在指定时间范围内的状态分布、延迟变化和原始记录。</p>
+    </div>
+    <div class="page-actions">
+        {% if task %}
+        <a class="button-link button-secondary" href="/tasks/{{ task.id }}/edit">编辑任务</a>
+        {% endif %}
+        <a class="button-link button-ghost" href="/tasks">返回任务列表</a>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">筛选条件</h3>
+    <p class="card-desc">按时间、节点和状态过滤该任务的探测记录。</p>
+    <form method="get" action="/tasks/{{ task.id if task else 0 }}" id="detail-filter-form">
+        <div class="form-grid">
+            <div class="form-field">
+                <label>时间范围</label>
+                <select name="hours" id="hours-select" onchange="toggleCustomTime(this.value)">
+                    <option value="6" {% if hours == "6" %}selected{% endif %}>近 6 小时</option>
+                    <option value="24" {% if hours == "24" or (not time_from and hours != "6" and hours != "72") %}selected{% endif %}>近 24 小时</option>
+                    <option value="72" {% if hours == "72" %}selected{% endif %}>近 72 小时</option>
+                    <option value="168" {% if hours == "168" %}selected{% endif %}>近 7 天</option>
+                    <option value="custom" {% if time_from %}selected{% endif %}>自定义</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label>状态</label>
+                <select name="status">
+                    <option value="" {% if status == "" %}selected{% endif %}>全部</option>
+                    <option value="NOERROR" {% if status == "NOERROR" %}selected{% endif %}>NOERROR</option>
+                    <option value="TIMEOUT" {% if status == "TIMEOUT" %}selected{% endif %}>TIMEOUT</option>
+                    <option value="SERVFAIL" {% if status == "SERVFAIL" %}selected{% endif %}>SERVFAIL</option>
+                    <option value="NXDOMAIN" {% if status == "NXDOMAIN" %}selected{% endif %}>NXDOMAIN</option>
+                    <option value="REFUSED" {% if status == "REFUSED" %}selected{% endif %}>REFUSED</option>
+                    <option value="ERROR" {% if status == "ERROR" %}selected{% endif %}>ERROR</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label>节点</label>
+                <select name="node">
+                    <option value="" {% if node == "" %}selected{% endif %}>全部节点</option>
+                    {% for n in all_nodes %}
+                    <option value="{{ n }}" {% if node == n %}selected{% endif %}>{{ n }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field" id="custom-time-row" style="display:{% if time_from %}flex{% else %}none{% endif %}; flex-direction:column; gap:6px;">
+                <label>自定义时间区间（北京时间）</label>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <input type="datetime-local" name="time_from" id="time_from" value="{{ time_from }}" style="flex:1; min-width:160px;">
+                    <span style="color:#94a3b8;">至</span>
+                    <input type="datetime-local" name="time_to" id="time_to" value="{{ time_to }}" style="flex:1; min-width:160px;">
+                </div>
+            </div>
+        </div>
+        <div class="button-row">
+            <button type="submit" onclick="return prepareFilter()">应用筛选</button>
+            {% if task %}
+            <a class="button-link button-secondary" href="/tasks/{{ task.id }}">重置</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h3 class="card-title">任务信息</h3>
+    {% if task %}
+    <div class="detail-list">
+        <div class="detail-item">
+            <span class="label">域名</span>
+            <div class="value">{{ task.domain }}</div>
+        </div>
+        <div class="detail-item">
+            <span class="label">DNS 服务器</span>
+            <div class="value">
+                {% for ds in task.dns_servers %}
+                <span class="badge badge-brand" style="margin:1px;">{{ ds.dns_alias }} ({{ ds.dns_server }})</span>
+                {% else %}
+                -
+                {% endfor %}
+            </div>
+        </div>
+        <div class="detail-item">
+            <span class="label">记录类型</span>
+            <div class="value">{{ task.record_type }}</div>
+        </div>
+        <div class="detail-item">
+            <span class="label">频率</span>
+            <div class="value">{{ task.frequency_seconds }} 秒</div>
+        </div>
+        <div class="detail-item">
+            <span class="label">状态</span>
+            <div class="value">
+                {% if task.enabled %}
+                <span class="badge badge-success">启用</span>
+                {% else %}
+                <span class="badge badge-warning">停用</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">任务不存在</div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3 class="card-title">每次拨测耗时曲线</h3>
+    <p class="card-desc">每条线代表一个“节点 + DNS”组合，展示每次拨测的耗时变化。</p>
+    {% if chart_time_labels %}
+    <canvas id="timelineChart" height="80"></canvas>
+    {% else %}
+    <div class="empty-state">暂无足够数据绘制耗时曲线</div>
+    {% endif %}
+</div>
+
+<div class="grid-2">
+    <div class="card" style="margin-bottom:0;">
+        <h3 class="card-title">按 DNS 统计失败次数</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>DNS 别名</th><th>失败次数</th></tr></thead>
+                <tbody>
+                {% for alias, count in by_dns.items() %}
+                    <tr><td>{{ alias }}</td><td>{{ count }}</td></tr>
+                {% else %}
+                    <tr><td colspan="2"><div class="empty-state">暂无失败记录</div></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom:0;">
+        <h3 class="card-title">状态码分布</h3>
+        {% if chart_status_labels %}
+        <div style="max-width:240px; margin:0 auto;">
+            <canvas id="statusDonut" height="200"></canvas>
+        </div>
+        {% else %}
+        <div class="empty-state">暂无数据</div>
+        {% endif %}
+    </div>
+</div>
+<div style="margin-bottom:18px;"></div>
+
+<div class="card">
+    <div class="toolbar">
+        <div>
+            <h3 class="card-title">原始记录</h3>
+            <div class="meta">保留完整证据链，便于定位瞬时故障和持续故障。</div>
+        </div>
+        <div class="meta">共 {{ records|length }} 条记录</div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>时间</th><th>节点</th><th>DNS</th><th>状态</th><th>耗时(ms)</th><th>结果</th><th>错误</th></tr>
+            </thead>
+            <tbody>
+            {% for item in records %}
+                <tr class="{% if item.status != 'NOERROR' %}row-danger{% endif %}">
+                    <td>{{ item.timestamp | bj_time }}</td>
+                    <td>{{ item.probe_node }}</td>
+                    <td>{{ item.dns_alias }} ({{ item.dns_server }})</td>
+                    <td>
+                        {% if item.status == "NOERROR" %}
+                        <span class="badge badge-success">{{ item.status }}</span>
+                        {% else %}
+                        <span class="badge badge-danger">{{ item.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.latency_ms }}</td>
+                    <td>{{ item.result_snippet }}</td>
+                    <td>{{ item.error_message }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="7"><div class="empty-state">暂无记录</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/chart.umd.min.js"></script>
+<script>
+function toggleCustomTime(val) {
+    const row = document.getElementById('custom-time-row');
+    row.style.display = val === 'custom' ? 'flex' : 'none';
+}
+
+function prepareFilter() {
+    const sel = document.getElementById('hours-select');
+    if (sel.value !== 'custom') {
+        document.getElementById('time_from').value = '';
+        document.getElementById('time_to').value = '';
+    } else {
+        sel.value = '24';
+    }
+    return true;
+}
+
+(function () {
+    const SUCCESS_COLOR = '#10b981';
+    const DANGER_COLOR = '#ef4444';
+    const WARNING_COLOR = '#f59e0b';
+    const BRAND_COLOR = '#0369a1';
+    const PALETTE = [SUCCESS_COLOR, DANGER_COLOR, WARNING_COLOR, BRAND_COLOR, '#0ea5e9', '#38bdf8'];
+
+    function seriesColor(index) {
+        const hue = (index * 57) % 360;
+        return `hsl(${hue} 72% 42%)`;
+    }
+
+    const timeLabels = {{ chart_time_labels | tojson }};
+    const latencyDatasets = {{ chart_latency_datasets | tojson }};
+    if (timeLabels.length) {
+        new Chart(document.getElementById('timelineChart'), {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: latencyDatasets.map((dataset, index) => {
+                    const color = seriesColor(index);
+                    return {
+                        label: dataset.label,
+                        data: dataset.data,
+                        pointMeta: dataset.point_meta,
+                        borderColor: color,
+                        backgroundColor: color,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        spanGaps: false,
+                        fill: false,
+                        tension: 0.25,
+                    };
+                })
+            },
+            options: {
+                interaction: { mode: 'nearest', intersect: false },
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 12, font: { size: 12 } } },
+                    tooltip: {
+                        callbacks: {
+                            title(items) {
+                                const point = items[0];
+                                const meta = point.dataset.pointMeta?.[point.dataIndex];
+                                return meta?.time || point.label;
+                            },
+                            label(context) {
+                                const meta = context.dataset.pointMeta?.[context.dataIndex];
+                                const lines = [`${context.dataset.label}: ${context.formattedValue} ms`];
+                                if (meta?.status) {
+                                    lines.push(`状态: ${meta.status}`);
+                                }
+                                return lines;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#f1f5f9' },
+                        ticks: { font: { size: 11 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 12 }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: '耗时 (ms)' },
+                        grid: { color: '#f1f5f9' },
+                        ticks: { font: { size: 11 }, callback: value => value + ' ms' }
+                    }
+                }
+            }
+        });
+    }
+
+    const statusLabels = {{ chart_status_labels | tojson }};
+    const statusData = {{ chart_status_data | tojson }};
+    if (statusLabels.length) {
+        const colors = statusLabels.map((label, index) => label === 'NOERROR' ? SUCCESS_COLOR : PALETTE[(index + 1) % PALETTE.length]);
+        new Chart(document.getElementById('statusDonut'), {
+            type: 'doughnut',
+            data: {
+                labels: statusLabels,
+                datasets: [{ data: statusData, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }]
+            },
+            options: {
+                cutout: '64%',
+                plugins: { legend: { position: 'bottom', labels: { padding: 12, font: { size: 12 } } } }
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

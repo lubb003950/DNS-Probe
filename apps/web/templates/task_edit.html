@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block breadcrumb %}
+<nav class="breadcrumb">
+    <a href="/tasks">探测任务</a>
+    <span class="bc-sep">›</span>
+    <span class="bc-cur">编辑任务{% if task %} — {{ task.domain }}{% endif %}</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-title">编辑任务</h2>
+        <p class="page-subtitle">调整探测目标、执行频率、阈值与告警联系人。</p>
+    </div>
+    <div class="page-actions">
+        <a class="button-link button-ghost" href="/tasks">返回任务列表</a>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">编辑表单</h3>
+    {% if task %}
+    <form method="post" action="/tasks/{{ task.id }}/edit">
+        <div class="form-grid">
+            <div class="form-section">探测目标</div>
+            <div class="form-field">
+                <label for="e-domain">域名</label>
+                <input id="e-domain" name="domain" value="{{ task.domain }}" required>
+            </div>
+            <div class="form-field">
+                <label for="e-category">分类</label>
+                <select id="e-category" name="category">
+                    <option value="core" {% if task.category == "core" %}selected{% endif %}>core</option>
+                    <option value="normal" {% if task.category == "normal" %}selected{% endif %}>normal</option>
+                    <option value="test" {% if task.category == "test" %}selected{% endif %}>test</option>
+                </select>
+            </div>
+            <div class="form-field span-2">
+                <label>探测节点（可选，不选则下发全部节点）</label>
+                <div class="dns-picker" id="node-picker-edit">
+                    <div class="dns-picker-col">
+                        <div class="dns-picker-title">可用节点</div>
+                        <select id="node-available-edit" size="4">
+                            {% for item in available_nodes %}
+                            {% if item.id not in selected_node_ids %}
+                            <option value="{{ item.id }}">{{ item.name }}{% if item.node_ip %} ({{ item.node_ip }}){% endif %}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="dns-picker-btns">
+                        <button type="button" onclick="nodeMoveRight('edit')" title="添加">▶</button>
+                        <button type="button" onclick="nodeMoveLeft('edit')" title="移除">◀</button>
+                    </div>
+                    <div class="dns-picker-col">
+                        <div class="dns-picker-title">已选节点（将被下发任务）</div>
+                        <select id="node-selected-node-edit" size="4">
+                            {% for item in selected_nodes %}
+                            {% if item.id in selected_node_ids %}
+                            <option value="{{ item.id }}">{{ item.name }}{% if item.node_ip %} ({{ item.node_ip }}){% endif %}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="form-field span-2">
+                <label>DNS 服务器</label>
+                <div class="dns-picker" id="dns-picker-edit">
+                    <div class="dns-picker-col">
+                        <div class="dns-picker-title">可用 DNS</div>
+                        <select id="dns-available-edit" size="5">
+                            {% for item in dns_servers %}
+                            {% if item.id not in selected_dns_ids %}
+                            <option value="{{ item.id }}">{{ item.dns_alias }} ({{ item.dns_server }})</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="dns-picker-btns">
+                        <button type="button" onclick="dnsMoveRight('edit')" title="添加">▶</button>
+                        <button type="button" onclick="dnsMoveLeft('edit')" title="移除">◀</button>
+                    </div>
+                    <div class="dns-picker-col">
+                        <div class="dns-picker-title">已选 DNS（将参与探测）</div>
+                        <select id="dns-selected-edit" size="5">
+                            {% for item in dns_servers %}
+                            {% if item.id in selected_dns_ids %}
+                            <option value="{{ item.id }}">{{ item.dns_alias }} ({{ item.dns_server }})</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div id="dns-picker-edit-error" class="field-error" style="display:none;">请至少选择一个 DNS 服务器</div>
+            </div>
+            <div class="form-field">
+                <label for="e-record-type">记录类型</label>
+                <select id="e-record-type" name="record_type">
+                    <option value="A"     {% if task.record_type == "A"     %}selected{% endif %}>A</option>
+                    <option value="AAAA"  {% if task.record_type == "AAAA"  %}selected{% endif %}>AAAA</option>
+                    <option value="CNAME" {% if task.record_type == "CNAME" %}selected{% endif %}>CNAME</option>
+                    <option value="TXT"   {% if task.record_type == "TXT"   %}selected{% endif %}>TXT</option>
+                    <option value="MX"    {% if task.record_type == "MX"    %}selected{% endif %}>MX</option>
+                    <option value="NS"    {% if task.record_type == "NS"    %}selected{% endif %}>NS</option>
+                </select>
+            </div>
+            <div class="form-section">探测参数</div>
+            <div class="form-field">
+                <label for="e-freq">频率(秒)</label>
+                <input id="e-freq" name="frequency_seconds" type="number" value="{{ task.frequency_seconds }}">
+                <span class="help-text">探测间隔，最小 10 秒，推荐 60 秒</span>
+            </div>
+            <div class="form-field">
+                <label for="e-timeout">超时(秒)</label>
+                <input id="e-timeout" name="timeout_seconds" type="number" value="{{ task.timeout_seconds }}">
+                <span class="help-text">单次 DNS 查询超时时间，推荐 2 秒</span>
+            </div>
+            <div class="form-field">
+                <label for="e-retries">重试次数</label>
+                <input id="e-retries" name="retries" type="number" value="{{ task.retries }}">
+                <span class="help-text">超时或失败后重试次数，0 表示不重试</span>
+            </div>
+            <div class="form-section">告警策略</div>
+            <div class="form-field">
+                <label for="e-fail-rate">失败率阈值(%)</label>
+                <input id="e-fail-rate" name="failure_rate_threshold" type="number" value="{{ task.failure_rate_threshold }}">
+                <span class="help-text">窗口内失败率超过此值触发告警，推荐 30%</span>
+            </div>
+            <div class="form-field">
+                <label for="e-consec">连续失败阈值</label>
+                <input id="e-consec" name="consecutive_failures_threshold" type="number" value="{{ task.consecutive_failures_threshold }}">
+                <span class="help-text">连续失败次数超过此值触发告警，推荐 3 次</span>
+            </div>
+            <div class="form-field span-2">
+                <label for="e-contacts">告警联系人</label>
+                <input id="e-contacts" name="alert_contacts" value="{{ task.alert_contacts }}">
+                <span class="help-text">格式：姓名:手机号，多个联系人用英文逗号分隔</span>
+            </div>
+            <div class="form-field">
+                <label for="e-sys-name">系统名称</label>
+                <input id="e-sys-name" name="system_name" value="{{ task.system_name }}">
+            </div>
+            <div class="form-field">
+                <label for="e-app-name">应用名称</label>
+                <input id="e-app-name" name="app_name" value="{{ task.app_name }}">
+            </div>
+        </div>
+        <div class="button-row">
+            <button type="submit" onclick="return dnsPickerBeforeSubmit('edit', this.closest('form'))">保存修改</button>
+            <a class="button-link button-secondary" href="/tasks">返回列表</a>
+        </div>
+    </form>
+    {% else %}
+    <div class="empty-state">任务不存在。</div>
+    {% endif %}
+</div>
+{% endblock %}

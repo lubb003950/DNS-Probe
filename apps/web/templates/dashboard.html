@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-title">运行总览</h2>
+        <p class="page-subtitle">查看近时段成功率、失败率、状态分布和最近探测记录。</p>
+    </div>
+</div>
+
+<div class="card soft" style="padding:20px 24px; margin-bottom:20px;">
+    <form method="get" action="/dashboard">
+        <div class="filter-row">
+            <div class="filter-item">
+                <label class="filter-label">时间范围</label>
+                <select name="hours">
+                    <option value="6"  {% if hours == 6  %}selected{% endif %}>近 6 小时</option>
+                    <option value="24" {% if hours == 24 %}selected{% endif %}>近 24 小时</option>
+                    <option value="72" {% if hours == 72 %}selected{% endif %}>近 72 小时</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label class="filter-label">任务</label>
+                <select name="task_id">
+                    <option value="">全部任务</option>
+                    {% for item in tasks %}
+                    <option value="{{ item.id }}" {% if task_id == item.id %}selected{% endif %}>{{ item.domain }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-item">
+                <label class="filter-label">状态</label>
+                <select name="status">
+                    <option value=""        {% if status == "" %}selected{% endif %}>全部</option>
+                    <option value="NOERROR" {% if status == "NOERROR" %}selected{% endif %}>NOERROR</option>
+                    <option value="TIMEOUT" {% if status == "TIMEOUT" %}selected{% endif %}>TIMEOUT</option>
+                    <option value="SERVFAIL"{% if status == "SERVFAIL" %}selected{% endif %}>SERVFAIL</option>
+                    <option value="NXDOMAIN"{% if status == "NXDOMAIN" %}selected{% endif %}>NXDOMAIN</option>
+                    <option value="REFUSED" {% if status == "REFUSED" %}selected{% endif %}>REFUSED</option>
+                    <option value="ERROR"   {% if status == "ERROR" %}selected{% endif %}>ERROR</option>
+                </select>
+            </div>
+            <div class="filter-item filter-actions">
+                <button type="submit">应用筛选</button>
+                <a class="button-link button-secondary" href="/dashboard">重置</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- 关键指标 -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">成功率</div>
+        <div class="metric success">{{ success_rate }}%</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">失败率</div>
+        <div class="metric danger">{{ failure_rate }}%</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">探测任务</div>
+        <div class="metric">{{ total_tasks }}</div>
+        <div class="stat-sub">共 {{ enabled_tasks }} 条启用</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">在线节点</div>
+        <div class="metric {% if online_nodes == 0 %}danger{% else %}success{% endif %}">{{ online_nodes }}</div>
+        <div class="stat-sub">共 {{ total_nodes }} 个节点</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">未处理告警</div>
+        <div class="metric {% if open_alerts > 0 %}danger{% endif %}">{{ open_alerts }}</div>
+        <div class="stat-sub">
+            {% if open_alerts > 0 %}<a href="/alerts?status=open">查看详情 →</a>{% else %}暂无未处理告警{% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 图表区 -->
+<div class="grid-2" style="margin-bottom:18px;">
+    <div class="card" style="margin-bottom:0;">
+        <h3 class="card-title">成功 / 失败分布</h3>
+        <p class="card-desc">当前时间范围内整体探测质量概览。</p>
+        <div style="max-width:260px; margin:0 auto;">
+            <canvas id="srChart" height="220"></canvas>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom:0;">
+        <h3 class="card-title">状态码分布</h3>
+        <p class="card-desc">各 DNS 响应状态的数量占比。</p>
+        <div style="max-width:280px; margin:0 auto;">
+            <canvas id="statusChart" height="220"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3 class="card-title">Top 失败任务</h3>
+    <p class="card-desc">按失败次数排序，优先暴露高风险域名。点击域名可查看任务详情。</p>
+    {% if top_failures %}
+    <canvas id="topFailChart" height="90" style="cursor:pointer;"></canvas>
+    <div class="table-wrap" style="margin-top:14px;">
+        <table>
+            <thead><tr><th>域名</th><th style="text-align:right;">失败次数</th></tr></thead>
+            <tbody>
+            {% set task_ids = top_failures_task_ids | default(chart_top_task_ids, true) | default([], true) %}
+            {% for domain, count in top_failures %}
+                {% set loop_index = loop.index0 %}
+                <tr>
+                    <td>
+                        {% set tid = task_ids[loop_index] if loop_index < (task_ids | length) else None %}
+                        {% if tid %}
+                        <a href="/tasks/{{ tid }}">{{ domain }}</a>
+                        {% else %}
+                        {{ domain }}
+                        {% endif %}
+                    </td>
+                    <td style="text-align:right;"><span class="badge badge-danger">{{ count }}</span></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">暂无失败数据</div>
+    {% endif %}
+</div>
+
+<!-- 最近探测记录 -->
+<div class="card">
+    <div class="toolbar">
+        <div>
+            <h3 class="card-title">最近探测记录</h3>
+            <div class="meta">展示最新 20 条探测结果，方便快速判断当前运行状态。</div>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>时间</th><th>域名</th><th>DNS</th><th>状态</th><th>耗时(ms)</th></tr>
+            </thead>
+            <tbody>
+            {% for item in recent_records %}
+            <tr class="{% if item.status != 'NOERROR' %}row-danger{% endif %}">
+                <td>{{ item.timestamp | bj_time }}</td>
+                <td>{{ item.domain }}</td>
+                <td>{{ item.dns_alias }}</td>
+                <td>
+                    {% if item.status == "NOERROR" %}
+                    <span class="badge badge-success">{{ item.status }}</span>
+                    {% else %}
+                    <span class="badge badge-danger">{{ item.status }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ item.latency_ms }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5"><div class="empty-state">暂无数据</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/chart.umd.min.js"></script>
+<script>
+(function () {
+    const SUCCESS_COLOR  = '#10b981';
+    const DANGER_COLOR   = '#ef4444';
+    const WARNING_COLOR  = '#f59e0b';
+    const BRAND_COLOR    = '#0369a1';
+    const PALETTE = [SUCCESS_COLOR, DANGER_COLOR, WARNING_COLOR, BRAND_COLOR, '#0ea5e9', '#38bdf8'];
+
+    // ── 成功/失败 donut ────────────────────
+    const srData = {{ chart_sr_data | tojson }};
+    new Chart(document.getElementById('srChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['成功', '失败'],
+            datasets: [{
+                data: srData,
+                backgroundColor: [SUCCESS_COLOR, DANGER_COLOR],
+                borderWidth: 2,
+                borderColor: '#fff',
+            }]
+        },
+        options: {
+            cutout: '68%',
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 16, font: { size: 13 } } },
+                tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}%` } }
+            }
+        }
+    });
+
+    // ── 状态码分布 donut ───────────────────
+    const statusLabels = {{ chart_status_labels | tojson }};
+    const statusData   = {{ chart_status_data   | tojson }};
+    if (statusLabels.length) {
+        const colors = statusLabels.map((l, i) => l === 'NOERROR' ? SUCCESS_COLOR : PALETTE[(i + 1) % PALETTE.length]);
+        new Chart(document.getElementById('statusChart'), {
+            type: 'doughnut',
+            data: {
+                labels: statusLabels,
+                datasets: [{
+                    data: statusData,
+                    backgroundColor: colors,
+                    borderWidth: 2,
+                    borderColor: '#fff',
+                }]
+            },
+            options: {
+                cutout: '62%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 14, font: { size: 12 } } }
+                }
+            }
+        });
+    }
+
+    // ── Top 失败任务横向条形 ───────────────
+    const topLabels  = {{ chart_top_labels    | tojson }};
+    const topData    = {{ chart_top_data      | tojson }};
+    const topTaskIds = {{ chart_top_task_ids  | tojson }};
+    if (topLabels.length) {
+        new Chart(document.getElementById('topFailChart'), {
+            type: 'bar',
+            data: {
+                labels: topLabels,
+                datasets: [{
+                    label: '失败次数',
+                    data: topData,
+                    backgroundColor: DANGER_COLOR + 'cc',
+                    borderColor: DANGER_COLOR,
+                    borderWidth: 1,
+                    borderRadius: 6,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 12 } } },
+                    y: { grid: { display: false }, ticks: { font: { size: 12 } } }
+                },
+                onClick(_, elements) {
+                    if (!elements.length) return;
+                    const idx = elements[0].index;
+                    const tid = topTaskIds[idx];
+                    if (tid) window.location.href = '/tasks/' + tid;
+                }
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}
