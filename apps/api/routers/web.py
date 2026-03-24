@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+from math import ceil
 from pathlib import Path
 import secrets
 from typing import List
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import delete, desc, func, select
+from sqlalchemy import and_, case, delete, desc, func, select
 from sqlalchemy.orm import Session
 
 from packages.alerts.rules import FAIL_STATUSES, is_failure
@@ -21,6 +23,9 @@ template_dir = Path(__file__).resolve().parents[2] / "web" / "templates"
 templates = Jinja2Templates(directory=str(template_dir))
 router = APIRouter(tags=["web"])
 BEIJING_TZ = timezone(timedelta(hours=8))
+TOP_FAILURE_WINDOW = timedelta(days=7)
+TASK_METRIC_WINDOW = timedelta(hours=24)
+TASK_PAGE_SIZE_OPTIONS = (20, 50, 100)
 
 
 def to_beijing_time(value: datetime | None) -> str:
@@ -43,6 +48,154 @@ def build_agent_env_snippet(node: ProbeNode) -> str:
 
 templates.env.filters["bj_time"] = to_beijing_time
 templates.env.filters["agent_env"] = build_agent_env_snippet
+
+
+def _build_query_url(path: str, params: dict[str, object]) -> str:
+    query_params = {
+        key: value
+        for key, value in params.items()
+        if value not in ("", None)
+    }
+    if not query_params:
+        return path
+    return f"{path}?{urlencode(query_params, doseq=True)}"
+
+
+def _normalize_page(value: int | str | None) -> int:
+    try:
+        page = int(value or 1)
+    except (TypeError, ValueError):
+        return 1
+    return max(page, 1)
+
+
+def _normalize_page_size(value: int | str | None) -> int:
+    try:
+        page_size = int(value or 50)
+    except (TypeError, ValueError):
+        return 50
+    return page_size if page_size in TASK_PAGE_SIZE_OPTIONS else 50
+
+
+def _task_form_values(task: ProbeTask | None = None) -> dict[str, object]:
+    if task is None:
+        return {
+            "domain": "",
+            "category": "normal",
+            "record_type": "A",
+            "frequency_seconds": 60,
+            "timeout_seconds": 2,
+            "retries": 1,
+            "failure_rate_threshold": 30,
+            "consecutive_failures_threshold": 3,
+            "alert_contacts": "",
+            "system_name": "\u0044\u004e\u0053\u63a2\u6d4b\u7cfb\u7edf",
+            "app_name": "\u0044\u004e\u0053\u63a2\u6d4b\u5f15\u64ce",
+        }
+    return {
+        "domain": task.domain,
+        "category": task.category,
+        "record_type": task.record_type,
+        "frequency_seconds": task.frequency_seconds,
+        "timeout_seconds": task.timeout_seconds,
+        "retries": task.retries,
+        "failure_rate_threshold": task.failure_rate_threshold,
+        "consecutive_failures_threshold": task.consecutive_failures_threshold,
+        "alert_contacts": task.alert_contacts,
+        "system_name": task.system_name,
+        "app_name": task.app_name,
+    }
+
+
+def _network_type_for(record_type: str) -> str:
+    if record_type == "A":
+        return "IPv4"
+    if record_type == "AAAA":
+        return "IPv6"
+    return "-"
+
+
+def _derive_task_status(task: ProbeTask, latest_status: str | None) -> tuple[str, str, str]:
+    if not task.enabled:
+        return "disabled", "\u5df2\u505c\u7528", "badge-warning"
+    if latest_status is None:
+        return "no_data", "\u65e0\u6570\u636e", "badge-brand"
+    if latest_status == "NOERROR":
+        return "normal", "\u6b63\u5e38", "badge-success"
+    return "abnormal", "\u5f02\u5e38", "badge-danger"
+
+
+def _fetch_task_metric_maps(
+    db: Session,
+    task_ids: list[int],
+) -> tuple[dict[int, dict[str, float | int | None]], dict[int, str]]:
+    if not task_ids:
+        return {}, {}
+
+    since = datetime.now(timezone.utc) - TASK_METRIC_WINDOW
+
+    metric_rows = db.execute(
+        select(
+            ProbeRecord.task_id.label("task_id"),
+            func.count().label("total_count"),
+            func.sum(case((ProbeRecord.status == "NOERROR", 1), else_=0)).label("success_count"),
+            func.avg(
+                case(
+                    (ProbeRecord.status == "NOERROR", ProbeRecord.latency_ms),
+                    else_=None,
+                )
+            ).label("avg_latency_ms"),
+        )
+        .where(
+            ProbeRecord.task_id.in_(task_ids),
+            ProbeRecord.timestamp >= since,
+        )
+        .group_by(ProbeRecord.task_id)
+    ).all()
+
+    metrics_by_task: dict[int, dict[str, float | int | None]] = {
+        row.task_id: {
+            "total_count": row.total_count,
+            "success_count": row.success_count or 0,
+            "avg_latency_ms": row.avg_latency_ms,
+        }
+        for row in metric_rows
+    }
+
+    latest_record_subquery = (
+        select(
+            ProbeRecord.task_id.label("task_id"),
+            func.max(ProbeRecord.timestamp).label("latest_timestamp"),
+        )
+        .where(
+            ProbeRecord.task_id.in_(task_ids),
+            ProbeRecord.timestamp >= since,
+        )
+        .group_by(ProbeRecord.task_id)
+        .subquery()
+    )
+
+    latest_status_rows = db.execute(
+        select(
+            ProbeRecord.task_id,
+            ProbeRecord.status,
+            ProbeRecord.id,
+        )
+        .join(
+            latest_record_subquery,
+            and_(
+                ProbeRecord.task_id == latest_record_subquery.c.task_id,
+                ProbeRecord.timestamp == latest_record_subquery.c.latest_timestamp,
+            ),
+        )
+        .order_by(ProbeRecord.task_id, desc(ProbeRecord.id))
+    ).all()
+
+    latest_status_by_task: dict[int, str] = {}
+    for row in latest_status_rows:
+        latest_status_by_task.setdefault(row.task_id, row.status)
+
+    return metrics_by_task, latest_status_by_task
 
 
 def _assignable_nodes(db: Session) -> list[ProbeNode]:
@@ -78,7 +231,9 @@ def dashboard_page(
     db: Session = Depends(get_db),
 ):
     selected_task_id = int(task_id) if task_id.strip().isdigit() else None
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    now_utc = datetime.now(timezone.utc)
+    since = now_utc - timedelta(hours=hours)
+    top_since = now_utc - TOP_FAILURE_WINDOW
 
     # 构建基础过滤条件
     base_filters = [ProbeRecord.timestamp >= since]
@@ -87,6 +242,12 @@ def dashboard_page(
     if status:
         base_filters.append(ProbeRecord.status == status)
     fail_filters = [*base_filters, ProbeRecord.status.in_(FAIL_STATUSES)]
+    top_failure_filters = [ProbeRecord.timestamp >= top_since]
+    if selected_task_id is not None:
+        top_failure_filters.append(ProbeRecord.task_id == selected_task_id)
+    if status:
+        top_failure_filters.append(ProbeRecord.status == status)
+    top_failure_filters.append(ProbeRecord.status.in_(FAIL_STATUSES))
 
     # SQL 聚合，避免将整张表加载到内存
     total = db.scalar(select(func.count()).select_from(ProbeRecord).where(*base_filters)) or 0
@@ -95,7 +256,7 @@ def dashboard_page(
 
     top_rows = db.execute(
         select(ProbeRecord.domain, func.count().label("cnt"))
-        .where(*fail_filters)
+        .where(*top_failure_filters)
         .group_by(ProbeRecord.domain)
         .order_by(desc("cnt"))
         .limit(10)
@@ -166,16 +327,28 @@ def dashboard_page(
 @router.get("/tasks")
 def tasks_page(
     request: Request,
-    q: str = "",
+    status: str = "",
+    task_name: str = "",
+    target: str = "",
     category: str = "",
     dns_alias: str = "",
+    page: int = 1,
+    page_size: int = 50,
+    q: str = "",
     enabled: str = "",
+    advanced: str = "",
     message: str = "",
     db: Session = Depends(get_db),
 ):
+    task_name = task_name or q
+    page = _normalize_page(page)
+    page_size = _normalize_page_size(page_size)
+
     stmt = select(ProbeTask).order_by(desc(ProbeTask.id))
-    if q:
-        stmt = stmt.where(ProbeTask.domain.ilike(f"%{q}%"))
+    if task_name:
+        stmt = stmt.where(ProbeTask.domain.ilike(f"%{task_name}%"))
+    if target:
+        stmt = stmt.where(ProbeTask.domain.ilike(f"%{target}%"))
     if category:
         stmt = stmt.where(ProbeTask.category == category)
     if enabled == "true":
@@ -184,23 +357,114 @@ def tasks_page(
         stmt = stmt.where(ProbeTask.enabled.is_(False))
     if dns_alias:
         stmt = stmt.join(ProbeTask.dns_servers).where(DnsServer.dns_alias == dns_alias)
-    tasks = db.scalars(stmt).all()
+    tasks = db.scalars(stmt).unique().all()
+
+    metrics_by_task, latest_status_by_task = _fetch_task_metric_maps(
+        db,
+        [task.id for task in tasks],
+    )
+
+    task_rows: list[dict[str, object]] = []
+    for task in tasks:
+        status_key, status_label, status_badge_class = _derive_task_status(
+            task,
+            latest_status_by_task.get(task.id),
+        )
+        if status and status != status_key:
+            continue
+
+        metrics = metrics_by_task.get(task.id, {})
+        total_count = int(metrics.get("total_count") or 0)
+        success_count = int(metrics.get("success_count") or 0)
+        avg_latency_ms = metrics.get("avg_latency_ms")
+
+        availability_text = "--"
+        if total_count:
+            availability_text = f"{(success_count * 100 / total_count):.2f}%"
+
+        response_time_text = "--"
+        if avg_latency_ms is not None:
+            response_time_text = f"{round(float(avg_latency_ms))}ms"
+
+        task_rows.append(
+            {
+                "task": task,
+                "status_key": status_key,
+                "status_label": status_label,
+                "status_badge_class": status_badge_class,
+                "network_type": _network_type_for(task.record_type),
+                "availability_text": availability_text,
+                "response_time_text": response_time_text,
+            }
+        )
+
+    total_tasks = len(task_rows)
+    total_pages = max(ceil(total_tasks / page_size), 1)
+    page = min(page, total_pages)
+    page_start = (page - 1) * page_size
+    page_end = page_start + page_size
+    paged_rows = task_rows[page_start:page_end]
+
     dns_servers = db.scalars(select(DnsServer).order_by(DnsServer.id)).all()
     all_aliases = sorted({s.dns_alias for s in dns_servers})
-    available_nodes = _assignable_nodes(db)
+    query_base = {
+        "status": status,
+        "task_name": task_name,
+        "target": target,
+        "category": category,
+        "dns_alias": dns_alias,
+        "page_size": page_size,
+        "advanced": advanced,
+    }
+    page_numbers = list(range(max(1, page - 2), min(total_pages, page + 2) + 1))
     return templates.TemplateResponse(
         request,
         "tasks.html",
         {
-            "tasks": tasks,
-            "dns_servers": dns_servers,
+            "task_rows": paged_rows,
             "all_aliases": all_aliases,
-            "available_nodes": available_nodes,
-            "q": q,
+            "status": status,
+            "task_name": task_name,
+            "target": target,
             "category": category,
             "dns_alias": dns_alias,
-            "enabled": enabled,
+            "advanced_open": advanced == "1" or bool(category or dns_alias),
             "message": message,
+            "page": page,
+            "page_size": page_size,
+            "page_size_options": TASK_PAGE_SIZE_OPTIONS,
+            "total_tasks": total_tasks,
+            "page_start": page_start + 1 if total_tasks else 0,
+            "page_end": min(page_end, total_tasks),
+            "total_pages": total_pages,
+            "page_numbers": page_numbers,
+            "page_urls": {
+                page_number: _build_query_url("/tasks", {**query_base, "page": page_number})
+                for page_number in page_numbers
+            },
+            "prev_page_url": _build_query_url("/tasks", {**query_base, "page": page - 1}) if page > 1 else None,
+            "next_page_url": _build_query_url("/tasks", {**query_base, "page": page + 1}) if page < total_pages else None,
+        },
+    )
+
+
+@router.get("/tasks/new")
+def new_task_page(request: Request, db: Session = Depends(get_db)):
+    dns_servers = db.scalars(select(DnsServer).order_by(DnsServer.id)).all()
+    available_nodes = _assignable_nodes(db)
+    return templates.TemplateResponse(
+        request,
+        "task_new.html",
+        {
+            "dns_servers": dns_servers,
+            "available_nodes": available_nodes,
+            "selected_dns_ids": set(),
+            "selected_nodes": [],
+            "selected_node_ids": set(),
+            "form_values": _task_form_values(),
+            "form_mode": "create",
+            "form_action": "/tasks",
+            "submit_label": "\u521b\u5efa\u4efb\u52a1",
         },
     )
 
@@ -219,8 +483,9 @@ def batch_toggle_tasks(
             elif action == "disable":
                 t.enabled = False
         db.commit()
-        action_label = "启用" if action == "enable" else "停用"
-        return RedirectResponse(url=f"/tasks?message=已{action_label} {len(items)} 条任务", status_code=303)
+        action_label = "\u542f\u7528" if action == "enable" else "\u505c\u7528"
+        message = f"\u5df2\u6279\u91cf{action_label} {len(items)} \u6761\u4efb\u52a1"
+        return RedirectResponse(url=_build_query_url("/tasks", {"message": message}), status_code=303)
     return RedirectResponse(url="/tasks", status_code=303)
 
 
@@ -281,6 +546,10 @@ def edit_task_page(task_id: int, request: Request, db: Session = Depends(get_db)
             "available_nodes": available_nodes,
             "selected_nodes": selected_nodes,
             "selected_node_ids": selected_node_ids,
+            "form_values": _task_form_values(task),
+            "form_mode": "edit",
+            "form_action": f"/tasks/{task_id}/edit",
+            "submit_label": "\u4fdd\u5b58\u4fee\u6539",
         },
     )
 

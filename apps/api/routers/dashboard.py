@@ -17,7 +17,9 @@ _FAIL_SET = ["TIMEOUT", "SERVFAIL", "NXDOMAIN", "REFUSED", "ERROR"]
 
 @router.get("")
 def get_dashboard(db: Session = Depends(get_db)):
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    now_utc = datetime.now(timezone.utc)
+    since = now_utc - timedelta(hours=24)
+    top_since = now_utc - timedelta(days=7)
 
     total = db.scalar(
         select(func.count()).select_from(ProbeRecord).where(ProbeRecord.timestamp >= since)
@@ -32,7 +34,7 @@ def get_dashboard(db: Session = Depends(get_db)):
 
     top_rows = db.execute(
         select(ProbeRecord.domain, func.count().label("cnt"))
-        .where(ProbeRecord.timestamp >= since, ProbeRecord.status.in_(_FAIL_SET))
+        .where(ProbeRecord.timestamp >= top_since, ProbeRecord.status.in_(_FAIL_SET))
         .group_by(ProbeRecord.domain)
         .order_by(desc("cnt"))
         .limit(10)

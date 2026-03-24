@@ -1,0 +1,128 @@
+<form method="post" action="{{ form_action }}">
+    <div class="form-grid">
+        <div class="form-section">监控目标</div>
+        <div class="form-field">
+            <label for="{{ form_mode }}-domain">域名</label>
+            <input id="{{ form_mode }}-domain" name="domain" value="{{ form_values.domain }}" required>
+        </div>
+        <div class="form-field">
+            <label for="{{ form_mode }}-category">分类</label>
+            <select id="{{ form_mode }}-category" name="category">
+                <option value="core" {% if form_values.category == "core" %}selected{% endif %}>core</option>
+                <option value="normal" {% if form_values.category == "normal" %}selected{% endif %}>normal</option>
+                <option value="test" {% if form_values.category == "test" %}selected{% endif %}>test</option>
+            </select>
+        </div>
+        <div class="form-field span-2">
+            <label>探测节点（可选，不选则下发全部在线节点）</label>
+            <div class="dns-picker" id="node-picker-{{ form_mode }}">
+                <div class="dns-picker-col">
+                    <div class="dns-picker-title">可用节点</div>
+                    <select id="node-available-{{ form_mode }}" size="5">
+                        {% for item in available_nodes %}
+                        {% if item.id not in selected_node_ids %}
+                        <option value="{{ item.id }}">{{ item.name }}{% if item.node_ip %} ({{ item.node_ip }}){% endif %}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="dns-picker-btns">
+                    <button type="button" onclick="nodeMoveRight('{{ form_mode }}')" title="添加">▶</button>
+                    <button type="button" onclick="nodeMoveLeft('{{ form_mode }}')" title="移除">◀</button>
+                </div>
+                <div class="dns-picker-col">
+                    <div class="dns-picker-title">已选节点</div>
+                    <select id="node-selected-node-{{ form_mode }}" size="5">
+                        {% for item in selected_nodes %}
+                        <option value="{{ item.id }}">{{ item.name }}{% if item.node_ip %} ({{ item.node_ip }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="form-field span-2">
+            <label>DNS 服务器</label>
+            <div class="dns-picker" id="dns-picker-{{ form_mode }}">
+                <div class="dns-picker-col">
+                    <div class="dns-picker-title">可用 DNS</div>
+                    <select id="dns-available-{{ form_mode }}" size="6">
+                        {% for item in dns_servers %}
+                        {% if item.id not in selected_dns_ids %}
+                        <option value="{{ item.id }}">{{ item.dns_alias }} ({{ item.dns_server }})</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="dns-picker-btns">
+                    <button type="button" onclick="dnsMoveRight('{{ form_mode }}')" title="添加">▶</button>
+                    <button type="button" onclick="dnsMoveLeft('{{ form_mode }}')" title="移除">◀</button>
+                </div>
+                <div class="dns-picker-col">
+                    <div class="dns-picker-title">已选 DNS</div>
+                    <select id="dns-selected-{{ form_mode }}" size="6">
+                        {% for item in dns_servers %}
+                        {% if item.id in selected_dns_ids %}
+                        <option value="{{ item.id }}">{{ item.dns_alias }} ({{ item.dns_server }})</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div id="dns-picker-{{ form_mode }}-error" class="field-error" style="display:none;">请至少选择一个 DNS 服务器</div>
+        </div>
+
+        <div class="form-section">探测参数</div>
+        <div class="form-field">
+            <label for="{{ form_mode }}-record-type">记录类型</label>
+            <select id="{{ form_mode }}-record-type" name="record_type">
+                <option value="A" {% if form_values.record_type == "A" %}selected{% endif %}>A</option>
+                <option value="AAAA" {% if form_values.record_type == "AAAA" %}selected{% endif %}>AAAA</option>
+                <option value="CNAME" {% if form_values.record_type == "CNAME" %}selected{% endif %}>CNAME</option>
+                <option value="TXT" {% if form_values.record_type == "TXT" %}selected{% endif %}>TXT</option>
+                <option value="MX" {% if form_values.record_type == "MX" %}selected{% endif %}>MX</option>
+                <option value="NS" {% if form_values.record_type == "NS" %}selected{% endif %}>NS</option>
+            </select>
+        </div>
+        <div class="form-field">
+            <label for="{{ form_mode }}-frequency">频率（秒）</label>
+            <input id="{{ form_mode }}-frequency" name="frequency_seconds" type="number" min="10" value="{{ form_values.frequency_seconds }}">
+            <span class="help-text">最小 10 秒，常用值 60 秒。</span>
+        </div>
+        <div class="form-field">
+            <label for="{{ form_mode }}-timeout">超时（秒）</label>
+            <input id="{{ form_mode }}-timeout" name="timeout_seconds" type="number" min="1" value="{{ form_values.timeout_seconds }}">
+        </div>
+        <div class="form-field">
+            <label for="{{ form_mode }}-retries">重试次数</label>
+            <input id="{{ form_mode }}-retries" name="retries" type="number" min="0" value="{{ form_values.retries }}">
+        </div>
+
+        <div class="form-section">告警策略</div>
+        <div class="form-field">
+            <label for="{{ form_mode }}-fail-rate">失败率阈值（%）</label>
+            <input id="{{ form_mode }}-fail-rate" name="failure_rate_threshold" type="number" min="1" max="100" value="{{ form_values.failure_rate_threshold }}">
+        </div>
+        <div class="form-field">
+            <label for="{{ form_mode }}-consecutive">连续失败阈值</label>
+            <input id="{{ form_mode }}-consecutive" name="consecutive_failures_threshold" type="number" min="1" value="{{ form_values.consecutive_failures_threshold }}">
+        </div>
+        <div class="form-field span-2">
+            <label for="{{ form_mode }}-contacts">告警联系人</label>
+            <input id="{{ form_mode }}-contacts" name="alert_contacts" value="{{ form_values.alert_contacts }}" placeholder="张三:13800000000,李四:13900000000">
+            <span class="help-text">多个联系人用英文逗号分隔。</span>
+        </div>
+        <div class="form-field">
+            <label for="{{ form_mode }}-system-name">系统名称</label>
+            <input id="{{ form_mode }}-system-name" name="system_name" value="{{ form_values.system_name }}">
+        </div>
+        <div class="form-field">
+            <label for="{{ form_mode }}-app-name">应用名称</label>
+            <input id="{{ form_mode }}-app-name" name="app_name" value="{{ form_values.app_name }}">
+        </div>
+    </div>
+
+    <div class="button-row">
+        <button type="submit" onclick="return dnsPickerBeforeSubmit('{{ form_mode }}', this.closest('form'))">{{ submit_label }}</button>
+        <a class="button-link button-secondary" href="/tasks">返回列表</a>
+    </div>
+</form>

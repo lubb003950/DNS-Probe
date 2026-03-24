@@ -4,15 +4,15 @@
 <nav class="breadcrumb">
     <a href="/tasks">任务管理</a>
     <span class="bc-sep">/</span>
-    <span class="bc-cur">编辑任务{% if task %} / {{ task.domain }}{% endif %}</span>
+    <span class="bc-cur">新增任务</span>
 </nav>
 {% endblock %}
 
 {% block content %}
 <div class="page-header">
     <div>
-        <h2 class="page-title">编辑任务</h2>
-        <p class="page-subtitle">调整监控目标、执行频率、阈值和告警联系人。</p>
+        <h2 class="page-title">新增任务</h2>
+        <p class="page-subtitle">创建新的 DNS 监控任务并配置探测参数与告警策略。</p>
     </div>
     <div class="page-actions">
         <a class="button-link button-ghost" href="/tasks">返回任务列表</a>
@@ -21,10 +21,6 @@
 
 <div class="card">
     <h3 class="card-title">任务配置</h3>
-    {% if task %}
     {% include "_task_form.html" %}
-    {% else %}
-    <div class="empty-state">任务不存在。</div>
-    {% endif %}
 </div>
 {% endblock %}
