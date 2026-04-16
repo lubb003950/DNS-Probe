@@ -13,6 +13,7 @@ from sqlalchemy import delete, select
 from apps.api.routers import alerts, dashboard, dns_servers, nodes, records, tasks, web
 from packages.core.config import settings
 from packages.core.logging_config import setup_logging
+from packages.core.node_status import node_offline_threshold_seconds, node_online_cutoff
 from packages.db import init_db
 from packages.db.models import AlertEvent, ProbeNode, ProbeRecord
 from packages.db.session import SessionLocal
@@ -21,7 +22,6 @@ setup_logging("api")
 logger = logging.getLogger(__name__)
 
 # 节点超过该时间未上报心跳则标记为 offline
-_OFFLINE_THRESHOLD = max(settings.heartbeat_interval_seconds * 3, 90)
 # 探测记录保留天数（来自配置，默认 30 天）
 _RECORD_RETENTION_DAYS = settings.record_retention_days
 # 已恢复告警保留天数（来自配置，默认 90 天）
@@ -34,10 +34,11 @@ async def _mark_nodes_offline() -> None:
         await asyncio.sleep(60)
         db = SessionLocal()
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(seconds=_OFFLINE_THRESHOLD)
+            cutoff = node_online_cutoff()
             stale = db.scalars(
                 select(ProbeNode).where(
-                    ProbeNode.status == "online",
+                    ProbeNode.status != "offline",
+                    ProbeNode.last_heartbeat.is_not(None),
                     ProbeNode.last_heartbeat < cutoff,
                 )
             ).all()
@@ -100,7 +101,7 @@ async def _cleanup_old_data() -> None:
 async def lifespan(app: FastAPI):
     init_db()
     logger.info("DNS 探测系统 API 启动（节点离线阈值 %ds，记录保留 %d 天）",
-                _OFFLINE_THRESHOLD, _RECORD_RETENTION_DAYS)
+                node_offline_threshold_seconds(), _RECORD_RETENTION_DAYS)
     t1 = asyncio.create_task(_mark_nodes_offline())
     t2 = asyncio.create_task(_cleanup_old_data())
     yield

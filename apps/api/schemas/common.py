@@ -70,7 +70,7 @@ class ProbeNodeRead(BaseModel):
     enabled: bool
     description: str
     status: str
-    last_heartbeat: datetime
+    last_heartbeat: datetime | None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -25,6 +25,29 @@ info() { echo -e "${GREEN}[INFO]${NC}  $*"; }
 warn() { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 die() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 
+python_env() {
+    env -u PYTHONHOME -u PYTHONPATH "$@"
+}
+
+resolve_python_bin() {
+    local candidate="${1:-}"
+    [[ -n "$candidate" ]] || return 1
+    if [[ "$candidate" == */* ]]; then
+        [[ -x "$candidate" ]] || return 1
+        printf '%s\n' "$candidate"
+    else
+        command -v "$candidate" 2>/dev/null
+    fi
+}
+
+python_is_supported() {
+    python_env "$1" -S -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" >/dev/null 2>&1
+}
+
+python_version() {
+    python_env "$1" -S -c "import sys; print('%d.%d' % sys.version_info[:2])"
+}
+
 db_auth_configured() {
     if [[ -n "${DNS_PROBE_DB_PASSWORD_ENC:-}" ]]; then
         return 0
@@ -41,19 +64,25 @@ echo ""
 [[ "$(id -u)" -eq 0 ]] || die "Please run this script as root."
 command -v openssl >/dev/null 2>&1 || die "openssl not found. Install it first."
 
-PYTHON_BIN=""
+PYTHON_BIN="${PYTHON_BIN:-}"
 PY_VER=""
-for PY in python3.12 python3.11 python3; do
-    if command -v "$PY" >/dev/null 2>&1; then
-        _abs="$(command -v "$PY")"
-        if "$_abs" -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" 2>/dev/null; then
+if [[ -n "$PYTHON_BIN" ]]; then
+    _abs="$(resolve_python_bin "$PYTHON_BIN" || true)"
+    [[ -n "$_abs" ]] || die "PYTHON_BIN=$PYTHON_BIN not found or is not executable."
+    python_is_supported "$_abs" || die "PYTHON_BIN=$_abs is not Python 3.11+."
+    PYTHON_BIN="$_abs"
+    PY_VER="$(python_version "$PYTHON_BIN")"
+else
+    for PY in python3.12 python3.11 python3; do
+        _abs="$(resolve_python_bin "$PY" || true)"
+        if [[ -n "$_abs" ]] && python_is_supported "$_abs"; then
             PYTHON_BIN="$_abs"
-            PY_VER="$("$_abs" -c "import sys; print('%d.%d' % sys.version_info[:2])")"
+            PY_VER="$(python_version "$_abs")"
             break
         fi
-    fi
-done
-[[ -n "$PYTHON_BIN" ]] || die "Python 3.11+ not found."
+    done
+fi
+[[ -n "$PYTHON_BIN" ]] || die "Python 3.11+ not found or failed to start cleanly. Check python3/python3.11 and unset conflicting PYTHONHOME/PYTHONPATH."
 info "Python: $PYTHON_BIN ($PY_VER)"
 info "Service account: $SERVICE_USER:$SERVICE_GROUP"
 
@@ -85,21 +114,21 @@ else
 fi
 
 info "Upgrading pip..."
-"$PYTHON_BIN" -m pip install --upgrade pip -q
+python_env "$PYTHON_BIN" -m pip install --upgrade pip -q
 
 WHEELS_DIR="$DEPLOY_DIR/wheels"
 if [[ -d "$WHEELS_DIR" ]] && [[ -n "$(ls -A "$WHEELS_DIR" 2>/dev/null)" ]]; then
     PKG_COUNT="$(ls "$WHEELS_DIR" | wc -l)"
     info "Installing dependencies from offline wheels ($PKG_COUNT packages)..."
-    "$PYTHON_BIN" -m pip install --no-index --find-links="$WHEELS_DIR" \
+    python_env "$PYTHON_BIN" -m pip install --no-index --find-links="$WHEELS_DIR" \
         -r "$DEPLOY_DIR/requirements_deploy.txt" -q
 else
     info "Installing dependencies from PyPI..."
-    "$PYTHON_BIN" -m pip install -r "$DEPLOY_DIR/requirements_deploy.txt" -q
+    python_env "$PYTHON_BIN" -m pip install -r "$DEPLOY_DIR/requirements_deploy.txt" -q
 fi
 
 info "Installing project package..."
-"$PYTHON_BIN" -m pip install -e "$DEPLOY_DIR" -q
+python_env "$PYTHON_BIN" -m pip install -e "$DEPLOY_DIR" -q
 
 if [[ ! -f "$KEY_FILE" ]]; then
     info "Generating encryption key: $KEY_FILE"
@@ -144,6 +173,8 @@ ENV_FILE="$ENV_FILE"
 set -a
 source "\$ENV_FILE"
 set +a
+
+unset PYTHONHOME PYTHONPATH
 
 if [[ -n "\${DNS_PROBE_DB_PASSWORD_ENC:-}" ]]; then
     _key=\$(tr -d '\r\n' < "\$KEY_FILE")
@@ -194,7 +225,7 @@ if $MYSQL_READY; then
             warn "init_db may fail if MySQL requires a password."
         fi
         cd "$DEPLOY_DIR"
-        "$PYTHON_BIN" scripts/init_db.py
+        python_env "$PYTHON_BIN" scripts/init_db.py
     ); then
         info "Database schema initialized."
     else

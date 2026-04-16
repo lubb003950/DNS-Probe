@@ -7,11 +7,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from apps.api.main import app
+from packages.core.node_status import node_offline_threshold_seconds
 from packages.db.models import AlertEvent, DnsServer, ProbeNode, ProbeRecord, ProbeTask
 import packages.db.session as db_session
 
 
 client = TestClient(app)
+
+
+def _extract_js_assignment(response_text: str, prefix: str) -> str:
+    return response_text.split(prefix, 1)[1].split(";", 1)[0]
 
 
 def test_dashboard_page_available() -> None:
@@ -174,8 +179,188 @@ def test_task_detail_page_available_with_records() -> None:
     assert response.status_code == 200
     assert "node-a" in response.text
     assert "NOERROR" in response.text
-    assert "latencyDatasets" in response.text
+    assert 'const trendMetric = "latency"' in response.text
+    assert "trendChart" in response.text
+    assert "latencyDatasets" not in response.text
     assert 'data-ts="' not in response.text
+
+
+def test_task_detail_status_filter_only_applies_to_raw_records() -> None:
+    unique = uuid.uuid4().hex[:8]
+    task_id = None
+    db = db_session.SessionLocal()
+    try:
+        dns = DnsServer(
+            dns_alias=f"status-filter-dns-{unique}",
+            dns_server="10.0.0.53",
+            category="internal",
+        )
+        task = ProbeTask(
+            domain=f"status-filter-{unique}.example.com",
+            category="normal",
+            record_type="A",
+            frequency_seconds=60,
+            timeout_seconds=2,
+            retries=1,
+            enabled=True,
+            failure_rate_threshold=30,
+            consecutive_failures_threshold=3,
+            alert_contacts="",
+            system_name="DNS System",
+            app_name="DNS App",
+        )
+        task.dns_servers = [dns]
+        db.add_all([dns, task])
+        db.flush()
+
+        db.add_all(
+            [
+                ProbeRecord(
+                    task_id=task.id,
+                    node_name="node-filter",
+                    probe_node="node-filter",
+                    dns_alias=dns.dns_alias,
+                    dns_server=dns.dns_server,
+                    domain=task.domain,
+                    record_type="A",
+                    status="SERVFAIL",
+                    latency_ms=55,
+                    result_snippet="",
+                    error_message="status-filter-failure",
+                ),
+                ProbeRecord(
+                    task_id=task.id,
+                    node_name="node-filter",
+                    probe_node="node-filter",
+                    dns_alias=dns.dns_alias,
+                    dns_server=dns.dns_server,
+                    domain=task.domain,
+                    record_type="A",
+                    status="NOERROR",
+                    latency_ms=11,
+                    result_snippet="1.1.1.1",
+                    error_message="",
+                ),
+            ]
+        )
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    response = client.get(f"/tasks/{task_id}?status=NOERROR&metric=failure_count")
+    assert response.status_code == 200
+    assert 'const trendMetric = "failure_count"' in response.text
+    assert "1次" in response.text
+    assert "status-filter-failure" not in response.text
+
+
+def test_task_detail_failure_duration_tracks_intervals() -> None:
+    unique = uuid.uuid4().hex[:8]
+    beijing_tz = timezone(timedelta(hours=8))
+    start_utc = datetime.now(timezone.utc).replace(second=0, microsecond=0) - timedelta(minutes=10)
+    end_utc = start_utc + timedelta(minutes=8)
+    task_id = None
+    db = db_session.SessionLocal()
+    try:
+        dns = DnsServer(
+            dns_alias=f"duration-dns-{unique}",
+            dns_server="10.0.0.53",
+            category="internal",
+        )
+        task = ProbeTask(
+            domain=f"duration-{unique}.example.com",
+            category="normal",
+            record_type="A",
+            frequency_seconds=60,
+            timeout_seconds=2,
+            retries=1,
+            enabled=True,
+            failure_rate_threshold=30,
+            consecutive_failures_threshold=3,
+            alert_contacts="",
+            system_name="DNS System",
+            app_name="DNS App",
+        )
+        task.dns_servers = [dns]
+        db.add_all([dns, task])
+        db.flush()
+
+        db.add_all(
+            [
+                ProbeRecord(
+                    task_id=task.id,
+                    node_name="node-duration",
+                    probe_node="node-duration",
+                    dns_alias=dns.dns_alias,
+                    dns_server=dns.dns_server,
+                    domain=task.domain,
+                    record_type="A",
+                    status="SERVFAIL",
+                    latency_ms=80,
+                    result_snippet="",
+                    error_message="first failure",
+                    timestamp=start_utc + timedelta(minutes=1),
+                ),
+                ProbeRecord(
+                    task_id=task.id,
+                    node_name="node-duration",
+                    probe_node="node-duration",
+                    dns_alias=dns.dns_alias,
+                    dns_server=dns.dns_server,
+                    domain=task.domain,
+                    record_type="A",
+                    status="SERVFAIL",
+                    latency_ms=90,
+                    result_snippet="",
+                    error_message="second failure",
+                    timestamp=start_utc + timedelta(minutes=2),
+                ),
+                ProbeRecord(
+                    task_id=task.id,
+                    node_name="node-duration",
+                    probe_node="node-duration",
+                    dns_alias=dns.dns_alias,
+                    dns_server=dns.dns_server,
+                    domain=task.domain,
+                    record_type="A",
+                    status="NOERROR",
+                    latency_ms=10,
+                    result_snippet="1.1.1.1",
+                    error_message="",
+                    timestamp=start_utc + timedelta(minutes=4),
+                ),
+                ProbeRecord(
+                    task_id=task.id,
+                    node_name="node-duration",
+                    probe_node="node-duration",
+                    dns_alias=dns.dns_alias,
+                    dns_server=dns.dns_server,
+                    domain=task.domain,
+                    record_type="A",
+                    status="SERVFAIL",
+                    latency_ms=100,
+                    result_snippet="",
+                    error_message="open failure",
+                    timestamp=start_utc + timedelta(minutes=6),
+                ),
+            ]
+        )
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    start_local = start_utc.astimezone(beijing_tz).strftime("%Y-%m-%dT%H:%M")
+    end_local = end_utc.astimezone(beijing_tz).strftime("%Y-%m-%dT%H:%M")
+    response = client.get(
+        f"/tasks/{task_id}?metric=failure_duration&time_from={start_local}&time_to={end_local}"
+    )
+    assert response.status_code == 200
+    assert "5分钟" in response.text
+    trend_values = _extract_js_assignment(response.text, "const trendValues = ")
+    assert "180" in trend_values
+    assert "120" in trend_values
 
 
 def test_dashboard_page_shows_status_distribution_summary() -> None:
@@ -329,6 +514,7 @@ def test_dashboard_top_failures_only_count_recent_7_days() -> None:
 
 def test_tasks_new_page_hides_offline_nodes_from_available_list() -> None:
     unique = uuid.uuid4().hex[:8]
+    now_utc = datetime.now(timezone.utc)
     online_name = f"online-node-{unique}"
     offline_name = f"offline-node-{unique}"
     db = db_session.SessionLocal()
@@ -339,13 +525,15 @@ def test_tasks_new_page_hides_offline_nodes_from_available_list() -> None:
             expected_ip="10.0.0.11",
             status="online",
             enabled=True,
+            last_heartbeat=now_utc,
         )
         offline_node = ProbeNode(
             name=offline_name,
             node_ip="10.0.0.12",
             expected_ip="10.0.0.12",
-            status="offline",
+            status="online",
             enabled=True,
+            last_heartbeat=now_utc - timedelta(seconds=node_offline_threshold_seconds() + 5),
         )
         db.add_all([online_node, offline_node])
         db.commit()
@@ -544,6 +732,7 @@ def test_tasks_page_paginates_rows() -> None:
 
 def test_task_edit_page_keeps_selected_offline_nodes_out_of_available_list() -> None:
     unique = uuid.uuid4().hex[:8]
+    now_utc = datetime.now(timezone.utc)
     task_id = None
     online_name = f"edit-online-node-{unique}"
     offline_name = f"edit-offline-node-{unique}"
@@ -560,13 +749,15 @@ def test_task_edit_page_keeps_selected_offline_nodes_out_of_available_list() -> 
             expected_ip="10.0.0.21",
             status="online",
             enabled=True,
+            last_heartbeat=now_utc,
         )
         offline_node = ProbeNode(
             name=offline_name,
             node_ip="10.0.0.22",
             expected_ip="10.0.0.22",
-            status="offline",
+            status="online",
             enabled=True,
+            last_heartbeat=now_utc - timedelta(seconds=node_offline_threshold_seconds() + 5),
         )
         task = ProbeTask(
             domain=f"edit-route-test-{unique}.example.com",

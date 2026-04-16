@@ -10,7 +10,7 @@
 <div class="page-header">
     <div>
         <h2 class="page-title">任务详情</h2>
-        <p class="page-subtitle">查看单个任务在指定时间范围内的状态分布、延迟变化和原始记录。</p>
+        <p class="page-subtitle">查看单个任务在指定时间范围内的性能趋势、状态分布和原始拨测记录。</p>
     </div>
     <div class="page-actions">
         {% if task %}
@@ -22,21 +22,31 @@
 
 <div class="card">
     <h3 class="card-title">筛选条件</h3>
-    <p class="card-desc">按时间、节点和状态过滤该任务的探测记录。</p>
+    <p class="card-desc">时间范围作用于全页；状态和节点仅过滤下方原始记录及其摘要；DNS 仅作用于性能趋势。</p>
     <form method="get" action="/tasks/{{ task.id if task else 0 }}" id="detail-filter-form">
+        <input type="hidden" name="metric" value="{{ trend_metric }}">
+        <input type="hidden" name="trend_node" value="{{ trend_selected_node }}">
         <div class="form-grid">
             <div class="form-field">
                 <label>时间范围</label>
                 <select name="hours" id="hours-select" onchange="toggleCustomTime(this.value)">
                     <option value="6" {% if hours == "6" %}selected{% endif %}>近 6 小时</option>
-                    <option value="24" {% if hours == "24" or (not time_from and hours != "6" and hours != "72") %}selected{% endif %}>近 24 小时</option>
+                    <option value="24" {% if hours == "24" or (not time_from and hours != "6" and hours != "72" and hours != "168") %}selected{% endif %}>近 24 小时</option>
                     <option value="72" {% if hours == "72" %}selected{% endif %}>近 72 小时</option>
                     <option value="168" {% if hours == "168" %}selected{% endif %}>近 7 天</option>
                     <option value="custom" {% if time_from %}selected{% endif %}>自定义</option>
                 </select>
             </div>
             <div class="form-field">
-                <label>状态</label>
+                <label>趋势 DNS</label>
+                <select name="trend_dns">
+                    {% for option in trend_dns_options %}
+                    <option value="{{ option.value }}" {% if trend_selected_dns == option.value %}selected{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label>原始记录状态</label>
                 <select name="status">
                     <option value="" {% if status == "" %}selected{% endif %}>全部</option>
                     <option value="NOERROR" {% if status == "NOERROR" %}selected{% endif %}>NOERROR</option>
@@ -48,7 +58,7 @@
                 </select>
             </div>
             <div class="form-field">
-                <label>节点</label>
+                <label>原始记录节点</label>
                 <select name="node">
                     <option value="" {% if node == "" %}selected{% endif %}>全部节点</option>
                     {% for n in all_nodes %}
@@ -117,13 +127,57 @@
 </div>
 
 <div class="card">
-    <h3 class="card-title">每次拨测耗时曲线</h3>
-    <p class="card-desc">每条线代表一个“节点 + DNS”组合，展示每次拨测的耗时变化。</p>
-    {% if chart_time_labels %}
-    <canvas id="timelineChart" height="80"></canvas>
-    {% else %}
-    <div class="empty-state">暂无足够数据绘制耗时曲线</div>
-    {% endif %}
+    <div class="toolbar trend-toolbar">
+        <div>
+            <h3 class="card-title">性能趋势</h3>
+            <p class="card-desc">切换指标后，左侧节点列表会同步展示当前指标汇总，右侧主图展示所选节点的趋势变化。</p>
+        </div>
+        <div class="trend-tab-row">
+            {% for tab in trend_metric_tabs %}
+            <a class="trend-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}">{{ tab.label }}</a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="trend-layout">
+        <div class="trend-node-panel">
+            <div class="trend-node-header">
+                <span>监测节点</span>
+                <span>{{ trend_metric_label }}</span>
+            </div>
+            {% if trend_node_rows %}
+            <div class="trend-node-list">
+                {% for row in trend_node_rows %}
+                <a class="trend-node-row {% if row.active %}active{% endif %}" href="{{ row.url }}">
+                    <span class="trend-node-name">{{ row.name }}</span>
+                    <span class="trend-node-value">{{ row.summary_text }}</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state trend-empty-state">当前条件下暂无节点数据</div>
+            {% endif %}
+        </div>
+
+        <div class="trend-chart-panel">
+            <div class="trend-meta-bar">
+                <span class="trend-meta-chip">指标：{{ trend_metric_label }}</span>
+                {% if trend_selected_node %}
+                <span class="trend-meta-chip">节点：{{ trend_selected_node }}</span>
+                {% endif %}
+                {% for option in trend_dns_options %}
+                    {% if option.value == trend_selected_dns %}
+                <span class="trend-meta-chip">DNS：{{ option.label }}</span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% if trend_has_chart_data %}
+            <canvas id="trendChart" height="92"></canvas>
+            {% else %}
+            <div class="empty-state">当前条件下暂无足够数据绘制{{ trend_metric_label }}趋势</div>
+            {% endif %}
+        </div>
+    </div>
 </div>
 
 <div class="grid-2">
@@ -221,53 +275,81 @@ function prepareFilter() {
     const BRAND_COLOR = '#0369a1';
     const PALETTE = [SUCCESS_COLOR, DANGER_COLOR, WARNING_COLOR, BRAND_COLOR, '#0ea5e9', '#38bdf8'];
 
-    function seriesColor(index) {
-        const hue = (index * 57) % 360;
-        return `hsl(${hue} 72% 42%)`;
+    function formatDuration(seconds) {
+        const rounded = Math.max(Math.round(Number(seconds || 0)), 0);
+        if (rounded < 60) {
+            return rounded + ' 秒';
+        }
+        if (rounded < 3600) {
+            return rounded % 60 === 0 ? (rounded / 60) + ' 分钟' : (rounded / 60).toFixed(1) + ' 分钟';
+        }
+        return rounded % 3600 === 0 ? (rounded / 3600) + ' 小时' : (rounded / 3600).toFixed(1) + ' 小时';
     }
 
-    const timeLabels = {{ chart_time_labels | tojson }};
-    const latencyDatasets = {{ chart_latency_datasets | tojson }};
-    if (timeLabels.length) {
-        new Chart(document.getElementById('timelineChart'), {
+    function formatMetricValue(metric, value) {
+        if (value === null || value === undefined) {
+            return '--';
+        }
+        if (metric === 'latency') {
+            return Math.round(Number(value)) + ' ms';
+        }
+        if (metric === 'availability') {
+            return Number(value).toFixed(2) + '%';
+        }
+        if (metric === 'failure_count') {
+            return Math.round(Number(value)) + ' 次';
+        }
+        if (metric === 'failure_duration') {
+            return formatDuration(value);
+        }
+        return String(value);
+    }
+
+    const trendMetric = {{ trend_metric | tojson }};
+    const trendMetricLabel = {{ trend_metric_label | tojson }};
+    const trendMetricAxisLabel = {{ trend_metric_axis_label | tojson }};
+    const trendLabels = {{ trend_chart_labels | tojson }};
+    const trendValues = {{ trend_chart_values | tojson }};
+    const trendMeta = {{ trend_chart_meta | tojson }};
+
+    const trendPalette = {
+        latency: { line: '#0ea5e9', fill: 'rgba(14, 165, 233, 0.14)' },
+        availability: { line: '#10b981', fill: 'rgba(16, 185, 129, 0.14)' },
+        failure_count: { line: '#ef4444', fill: 'rgba(239, 68, 68, 0.14)' },
+        failure_duration: { line: '#f59e0b', fill: 'rgba(245, 158, 11, 0.14)' }
+    };
+
+    if (trendLabels.length && document.getElementById('trendChart')) {
+        const palette = trendPalette[trendMetric] || trendPalette.latency;
+        new Chart(document.getElementById('trendChart'), {
             type: 'line',
             data: {
-                labels: timeLabels,
-                datasets: latencyDatasets.map((dataset, index) => {
-                    const color = seriesColor(index);
-                    return {
-                        label: dataset.label,
-                        data: dataset.data,
-                        pointMeta: dataset.point_meta,
-                        borderColor: color,
-                        backgroundColor: color,
-                        borderWidth: 2,
-                        pointRadius: 3,
-                        pointHoverRadius: 5,
-                        spanGaps: false,
-                        fill: false,
-                        tension: 0.25,
-                    };
-                })
+                labels: trendLabels,
+                datasets: [{
+                    label: trendMetricLabel,
+                    data: trendValues,
+                    borderColor: palette.line,
+                    backgroundColor: palette.fill,
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    spanGaps: false,
+                    fill: true,
+                    tension: 0.25,
+                }]
             },
             options: {
                 interaction: { mode: 'nearest', intersect: false },
                 plugins: {
-                    legend: { position: 'bottom', labels: { padding: 12, font: { size: 12 } } },
+                    legend: { display: false },
                     tooltip: {
                         callbacks: {
                             title(items) {
                                 const point = items[0];
-                                const meta = point.dataset.pointMeta?.[point.dataIndex];
-                                return meta?.time || point.label;
+                                return trendMeta?.[point.dataIndex]?.time || point.label;
                             },
                             label(context) {
-                                const meta = context.dataset.pointMeta?.[context.dataIndex];
-                                const lines = [`${context.dataset.label}: ${context.formattedValue} ms`];
-                                if (meta?.status) {
-                                    lines.push(`状态: ${meta.status}`);
-                                }
-                                return lines;
+                                return `${trendMetricLabel}: ${formatMetricValue(trendMetric, context.raw)}`;
                             }
                         }
                     }
@@ -275,13 +357,20 @@ function prepareFilter() {
                 scales: {
                     x: {
                         grid: { color: '#f1f5f9' },
-                        ticks: { font: { size: 11 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 12 }
+                        ticks: { font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
                     },
                     y: {
                         beginAtZero: true,
-                        title: { display: true, text: '耗时 (ms)' },
+                        suggestedMax: trendMetric === 'availability' ? 100 : undefined,
+                        max: trendMetric === 'availability' ? 100 : undefined,
+                        title: { display: true, text: trendMetricAxisLabel },
                         grid: { color: '#f1f5f9' },
-                        ticks: { font: { size: 11 }, callback: value => value + ' ms' }
+                        ticks: {
+                            font: { size: 11 },
+                            callback(value) {
+                                return formatMetricValue(trendMetric, value);
+                            }
+                        }
                     }
                 }
             }

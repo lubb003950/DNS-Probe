@@ -10,6 +10,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Callable
 
 from apps.agent.client import heartbeat, pull_tasks, register_node, report_record
 from apps.agent.probe import probe_backend_name, probe_dns
@@ -84,6 +85,33 @@ def _register_with_retry(max_wait: int = 300) -> None:
             delay = min(delay * 2, max_wait)
 
 
+def _heartbeat_loop(
+    stop_event: threading.Event,
+    *,
+    heartbeat_fn: Callable[[], None] = heartbeat,
+    interval_seconds: int | None = None,
+    monotonic_fn: Callable[[], float] = time.monotonic,
+) -> None:
+    """Send heartbeat on a fixed schedule independent of task pulling."""
+    interval = max(1, int(interval_seconds or settings.heartbeat_interval_seconds))
+    next_heartbeat = monotonic_fn() + interval
+
+    while not stop_event.is_set():
+        wait_seconds = max(0.0, next_heartbeat - monotonic_fn())
+        if stop_event.wait(wait_seconds):
+            return
+
+        try:
+            heartbeat_fn()
+        except Exception:
+            logger.exception("Heartbeat failed and will be retried in the next cycle.")
+
+        next_heartbeat += interval
+        now = monotonic_fn()
+        if next_heartbeat <= now:
+            next_heartbeat = now + interval
+
+
 def _probe_and_report(task: dict, next_due: dict, lock: threading.Lock) -> None:
     """Run a single probe in the worker pool and report the result."""
     task_id = task["id"]
@@ -135,7 +163,6 @@ def run_agent() -> None:
     signal.signal(signal.SIGTERM, _signal_handler)
 
     _register_with_retry()
-    last_heartbeat = 0.0
     next_due: dict[tuple[int, str], float] = {}
     lock = threading.Lock()
     recommended_workers = _recommended_probe_workers()
@@ -155,42 +182,48 @@ def run_agent() -> None:
         probe_backend_name(),
     )
 
-    with ThreadPoolExecutor(max_workers=settings.probe_workers) as executor:
-        while True:
-            now = time.monotonic()
+    stop_event = threading.Event()
+    heartbeat_thread = threading.Thread(
+        target=_heartbeat_loop,
+        args=(stop_event,),
+        name="agent-heartbeat",
+        daemon=True,
+    )
+    heartbeat_thread.start()
 
-            if now - last_heartbeat >= settings.heartbeat_interval_seconds:
+    try:
+        with ThreadPoolExecutor(max_workers=settings.probe_workers) as executor:
+            while True:
+                now = time.monotonic()
+
                 try:
-                    heartbeat()
-                    last_heartbeat = now
+                    task_list = pull_tasks()
                 except Exception:
-                    logger.exception("Heartbeat failed and will be retried in the next cycle.")
+                    logger.exception("Pulling tasks failed and will be retried in the next cycle.")
+                    time.sleep(settings.pull_interval_seconds)
+                    continue
 
-            try:
-                task_list = pull_tasks()
-            except Exception:
-                logger.exception("Pulling tasks failed and will be retried in the next cycle.")
+                submitted = 0
+                for task in task_list:
+                    schedule_key = (task["id"], task["dns_server"])
+                    with lock:
+                        due_at = next_due.get(schedule_key)
+                        if due_at is None:
+                            next_due[schedule_key] = now + _initial_probe_delay(task)
+                            continue
+                        if now < due_at:
+                            continue
+                        next_due[schedule_key] = now + task["frequency_seconds"]
+                    executor.submit(_probe_and_report, task, next_due, lock)
+                    submitted += 1
+
+                if submitted:
+                    logger.debug("Submitted %d probe jobs in this cycle.", submitted)
+
                 time.sleep(settings.pull_interval_seconds)
-                continue
-
-            submitted = 0
-            for task in task_list:
-                schedule_key = (task["id"], task["dns_server"])
-                with lock:
-                    due_at = next_due.get(schedule_key)
-                    if due_at is None:
-                        next_due[schedule_key] = now + _initial_probe_delay(task)
-                        continue
-                    if now < due_at:
-                        continue
-                    next_due[schedule_key] = now + task["frequency_seconds"]
-                executor.submit(_probe_and_report, task, next_due, lock)
-                submitted += 1
-
-            if submitted:
-                logger.debug("Submitted %d probe jobs in this cycle.", submitted)
-
-            time.sleep(settings.pull_interval_seconds)
+    finally:
+        stop_event.set()
+        heartbeat_thread.join(timeout=max(1, settings.request_timeout_seconds + 1))
 
 
 if __name__ == "__main__":

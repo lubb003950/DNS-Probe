@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.deps.agent_auth import authenticate_node_path, authenticate_node_payload
 from apps.api.schemas import ProbeNodeRead, ProbeNodeUpsert
+from packages.core.node_status import derive_node_status
 from packages.db.models import ProbeNode, ProbeTask, task_nodes
 from packages.db.session import get_db
 
@@ -47,8 +48,12 @@ def heartbeat(
 
 @router.get("")
 def list_nodes(db: Session = Depends(get_db)):
+    now_utc = datetime.now(timezone.utc)
     return [
-        ProbeNodeRead.model_validate(item).model_dump()
+        {
+            **ProbeNodeRead.model_validate(item).model_dump(),
+            "status": derive_node_status(item, now_utc),
+        }
         for item in db.scalars(select(ProbeNode).order_by(ProbeNode.id.desc())).all()
     ]
 

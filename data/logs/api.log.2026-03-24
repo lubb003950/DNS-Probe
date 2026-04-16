@@ -1,0 +1,188 @@
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard?task_id= "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/api/alerts/999999 "HTTP/1.1 404 Not Found"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts/1 "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/static/chart.umd.min.js "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/2 "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/api/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/new "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=disabled "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=no_data "HTTP/1.1 200 OK"
+2026-03-24 13:30:16 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?page_size=1&page=1 "HTTP/1.1 200 OK"
+2026-03-24 13:30:17 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/12/edit "HTTP/1.1 200 OK"
+2026-03-24 13:30:17 [INFO    ] httpx - HTTP Request: POST http://testserver/tasks/13/delete "HTTP/1.1 303 See Other"
+2026-03-24 13:30:17 [ERROR   ] apps.api.routers.records - Failed to evaluate alerts for task_id=13 record_id=9
+Traceback (most recent call last):
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\apps\api\routers\records.py", line 48, in create_record
+    evaluate_alerts(db, task, record)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\tests\test_routes.py", line 712, in _boom
+    raise RuntimeError("alert evaluation failed")
+RuntimeError: alert evaluation failed
+2026-03-24 13:30:17 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard?task_id= "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/api/alerts/999999 "HTTP/1.1 404 Not Found"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts/1 "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/static/chart.umd.min.js "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/2 "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/api/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/new "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=disabled "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=no_data "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?task_name=pagination-&target=13932dab&page_size=1&page=1 "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/12/edit "HTTP/1.1 200 OK"
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: POST http://testserver/tasks/13/delete "HTTP/1.1 303 See Other"
+2026-03-24 13:31:03 [ERROR   ] apps.api.routers.records - Failed to evaluate alerts for task_id=13 record_id=9
+Traceback (most recent call last):
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\apps\api\routers\records.py", line 48, in create_record
+    evaluate_alerts(db, task, record)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\tests\test_routes.py", line 717, in _boom
+    raise RuntimeError("alert evaluation failed")
+RuntimeError: alert evaluation failed
+2026-03-24 13:31:03 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard?task_id= "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/api/alerts/999999 "HTTP/1.1 404 Not Found"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts/1 "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/static/chart.umd.min.js "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/2 "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/api/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/new "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=disabled "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=no_data "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?task_name=pagination-&target=00acb82e&page_size=20&page=1 "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?task_name=pagination-&target=00acb82e&page_size=20&page=2 "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/30/edit "HTTP/1.1 200 OK"
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: POST http://testserver/tasks/31/delete "HTTP/1.1 303 See Other"
+2026-03-24 13:31:28 [ERROR   ] apps.api.routers.records - Failed to evaluate alerts for task_id=31 record_id=9
+Traceback (most recent call last):
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\apps\api\routers\records.py", line 48, in create_record
+    evaluate_alerts(db, task, record)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\tests\test_routes.py", line 717, in _boom
+    raise RuntimeError("alert evaluation failed")
+RuntimeError: alert evaluation failed
+2026-03-24 13:31:28 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard?task_id= "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/api/alerts/999999 "HTTP/1.1 404 Not Found"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts/1 "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/static/chart.umd.min.js "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/2 "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/api/dashboard "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/new "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=disabled "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=no_data "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?task_name=pagination-&target=897de4b1&page_size=20&page=1 "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?task_name=pagination-&target=897de4b1&page_size=20&page=2 "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/30/edit "HTTP/1.1 200 OK"
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: POST http://testserver/tasks/31/delete "HTTP/1.1 303 See Other"
+2026-03-24 17:52:28 [ERROR   ] apps.api.routers.records - Failed to evaluate alerts for task_id=31 record_id=9
+Traceback (most recent call last):
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\apps\api\routers\records.py", line 48, in create_record
+    evaluate_alerts(db, task, record)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\tests\test_routes.py", line 717, in _boom
+    raise RuntimeError("alert evaluation failed")
+RuntimeError: alert evaluation failed
+2026-03-24 17:52:28 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard?task_id= "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/api/alerts/999999 "HTTP/1.1 404 Not Found"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts/1 "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/static/chart.umd.min.js "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/2 "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/3?status=NOERROR&metric=failure_count "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/4?metric=failure_duration&time_from=2026-03-24T21:30&time_to=2026-03-24T21:38 "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/api/dashboard "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/new "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=disabled "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=no_data "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?task_name=pagination-&target=fefc2ad8&page_size=20&page=1 "HTTP/1.1 200 OK"
+2026-03-24 21:40:49 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?task_name=pagination-&target=fefc2ad8&page_size=20&page=2 "HTTP/1.1 200 OK"
+2026-03-24 21:40:50 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/32/edit "HTTP/1.1 200 OK"
+2026-03-24 21:40:50 [INFO    ] httpx - HTTP Request: POST http://testserver/tasks/33/delete "HTTP/1.1 303 See Other"
+2026-03-24 21:40:50 [ERROR   ] apps.api.routers.records - Failed to evaluate alerts for task_id=33 record_id=15
+Traceback (most recent call last):
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\apps\api\routers\records.py", line 48, in create_record
+    evaluate_alerts(db, task, record)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\tests\test_routes.py", line 901, in _boom
+    raise RuntimeError("alert evaluation failed")
+RuntimeError: alert evaluation failed
+2026-03-24 21:40:50 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/api/nodes/register "HTTP/1.1 401 Unauthorized"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/api/nodes/register "HTTP/1.1 403 Forbidden"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/api/nodes/register "HTTP/1.1 403 Forbidden"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/api/nodes/heartbeat "HTTP/1.1 403 Forbidden"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/api/nodes/register "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/api/nodes/heartbeat "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/api/nodes/node-b-1cec284b/tasks "HTTP/1.1 403 Forbidden"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/api/nodes/node-a-e317e6f3/tasks "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/nodes/8/reset-token "HTTP/1.1 303 See Other"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/api/nodes/register "HTTP/1.1 403 Forbidden"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard?task_id= "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/api/alerts/999999 "HTTP/1.1 404 Not Found"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/alerts/1 "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/static/chart.umd.min.js "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/3 "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/4?status=NOERROR&metric=failure_count "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/5?metric=failure_duration&time_from=2026-03-24T21:32&time_to=2026-03-24T21:40 "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/api/dashboard "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/dashboard "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/new "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=disabled "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?status=no_data "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?task_name=pagination-&target=903c5ab3&page_size=20&page=1 "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks?task_name=pagination-&target=903c5ab3&page_size=20&page=2 "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: GET http://testserver/tasks/33/edit "HTTP/1.1 200 OK"
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/tasks/34/delete "HTTP/1.1 303 See Other"
+2026-03-24 21:42:48 [ERROR   ] apps.api.routers.records - Failed to evaluate alerts for task_id=34 record_id=16
+Traceback (most recent call last):
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\apps\api\routers\records.py", line 48, in create_record
+    evaluate_alerts(db, task, record)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Lu\Desktop\DNS探测v2.0\tests\test_routes.py", line 901, in _boom
+    raise RuntimeError("alert evaluation failed")
+RuntimeError: alert evaluation failed
+2026-03-24 21:42:48 [INFO    ] httpx - HTTP Request: POST http://testserver/api/records "HTTP/1.1 200 OK"
