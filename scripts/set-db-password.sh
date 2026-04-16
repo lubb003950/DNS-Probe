@@ -61,7 +61,7 @@ fi
 # 固定迭代与摘要；显式 -in - 适配 OpenSSL 3.x（与 start-with-secret.sh 解密一致）
 # tr -d '\n' 保证密文单行，防止 systemd EnvironmentFile 逐行解析时截断
 ENC=$(printf '%s' "$PASSWORD" \
-    | openssl enc -e -aes-256-cbc -pbkdf2 -iter 10000 -md sha256 -pass env:OPENSSL_PROBE_KEY -base64 -in - 2>/dev/null \
+    | openssl enc -e -aes-256-cbc -pbkdf2 -iter 10000 -md sha256 -pass env:OPENSSL_PROBE_KEY -base64 -A -in - 2>/dev/null \
     | tr -d '\n')
 unset OPENSSL_PROBE_KEY
 

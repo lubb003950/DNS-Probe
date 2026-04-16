@@ -127,8 +127,8 @@ else
     python_env "$PYTHON_BIN" -m pip install -r "$DEPLOY_DIR/requirements_deploy.txt" -q
 fi
 
-info "Installing project package..."
-python_env "$PYTHON_BIN" -m pip install -e "$DEPLOY_DIR" -q
+info "Installing project package (editable, no deps, no build isolation)..."
+python_env "$PYTHON_BIN" -m pip install --no-deps --no-build-isolation -e "$DEPLOY_DIR"
 
 if [[ ! -f "$KEY_FILE" ]]; then
     info "Generating encryption key: $KEY_FILE"
@@ -178,11 +178,14 @@ unset PYTHONHOME PYTHONPATH
 
 if [[ -n "\${DNS_PROBE_DB_PASSWORD_ENC:-}" ]]; then
     _key=\$(tr -d '\r\n' < "\$KEY_FILE")
-    DNS_PROBE_DB_PASSWORD=\$(
+    if ! DNS_PROBE_DB_PASSWORD=\$(
         printf '%s' "\$DNS_PROBE_DB_PASSWORD_ENC" \
         | openssl enc -d -aes-256-cbc -pbkdf2 -iter 10000 -md sha256 \
-            -pass "pass:\$_key" -base64 -in - 2>/dev/null || true
-    )
+            -pass "pass:\$_key" -base64 -A -in - 2>/dev/null
+    ); then
+        echo "[ERROR] Failed to decrypt DNS_PROBE_DB_PASSWORD_ENC with \$KEY_FILE" >&2
+        exit 1
+    fi
     export DNS_PROBE_DB_PASSWORD
 fi
 
@@ -206,31 +209,42 @@ else
 fi
 
 if $MYSQL_READY; then
-    info "Initializing database schema..."
     if (
         set -a
         source "$ENV_FILE" 2>/dev/null || true
         set +a
-        if [[ -n "${DNS_PROBE_DB_PASSWORD_ENC:-}" ]]; then
-            _key=$(tr -d '\r\n' < "$KEY_FILE")
-            DNS_PROBE_DB_PASSWORD=$(
-                printf '%s' "$DNS_PROBE_DB_PASSWORD_ENC" \
-                | openssl enc -d -aes-256-cbc -pbkdf2 -iter 10000 -md sha256 \
-                    -pass "pass:$_key" -base64 -in - 2>/dev/null || true
-            )
-            export DNS_PROBE_DB_PASSWORD
-        fi
-        if ! db_auth_configured; then
-            warn "No encrypted DB password or password-bearing DNS_PROBE_DATABASE_URL detected."
-            warn "init_db may fail if MySQL requires a password."
-        fi
-        cd "$DEPLOY_DIR"
-        python_env "$PYTHON_BIN" scripts/init_db.py
+        db_auth_configured
     ); then
-        info "Database schema initialized."
+        info "Initializing database schema..."
+        if (
+            set -a
+            source "$ENV_FILE" 2>/dev/null || true
+            set +a
+            if [[ -n "${DNS_PROBE_DB_PASSWORD_ENC:-}" ]]; then
+                _key=$(tr -d '\r\n' < "$KEY_FILE")
+                if ! DNS_PROBE_DB_PASSWORD=$(
+                    printf '%s' "$DNS_PROBE_DB_PASSWORD_ENC" \
+                    | openssl enc -d -aes-256-cbc -pbkdf2 -iter 10000 -md sha256 \
+                        -pass "pass:$_key" -base64 -A -in - 2>/dev/null
+                ); then
+                    warn "Failed to decrypt DNS_PROBE_DB_PASSWORD_ENC with $KEY_FILE"
+                    exit 1
+                fi
+                export DNS_PROBE_DB_PASSWORD
+            fi
+            cd "$DEPLOY_DIR"
+            python_env "$PYTHON_BIN" scripts/init_db.py
+        ); then
+            info "Database schema initialized."
+        else
+            warn "Database schema initialization failed, but deployment will continue."
+            warn "If your database needs a password, run: bash $DEPLOY_DIR/scripts/set-db-password.sh"
+            warn "Then run manually: $WRAPPER_SCRIPT $PYTHON_BIN $DEPLOY_DIR/scripts/init_db.py"
+        fi
     else
-        warn "Database schema initialization failed, but deployment will continue."
-        warn "If your database needs a password, run: bash $DEPLOY_DIR/scripts/set-db-password.sh"
+        warn "No encrypted DB password or password-bearing DNS_PROBE_DATABASE_URL detected."
+        warn "Skipping init_db to avoid an expected authentication failure."
+        warn "Configure DB auth first: bash $DEPLOY_DIR/scripts/set-db-password.sh"
         warn "Then run manually: $WRAPPER_SCRIPT $PYTHON_BIN $DEPLOY_DIR/scripts/init_db.py"
     fi
 else
